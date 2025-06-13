@@ -48,6 +48,12 @@ def analyze_all_stocks():
         stocks = db.query(Acao).filter(Acao.ativo == True).all()
         logging.info(f"📊 Analisando {len(stocks)} ações...")
         
+        # Listas para armazenar resultados
+        buy_signals = []
+        sell_signals = []
+        all_analyses = []
+        errors = []
+        
         for stock in stocks:
             try:
                 start_time = time.time()
@@ -64,6 +70,12 @@ def analyze_all_stocks():
                 PRICE_GAUGE.labels(stock=stock.codigo).set(analysis['price'])
                 TREND_GAUGE.labels(stock=stock.codigo).set(1 if analysis['trend'] == 'UP' else 0)
                 
+                # Adiciona à lista de todas as análises
+                all_analyses.append({
+                    'stock': stock.codigo,
+                    'analysis': analysis
+                })
+                
                 # Verifica se há posição na carteira
                 portfolio_position = db.query(Carteira).filter(Carteira.codigo == stock.codigo).first()
                 
@@ -72,18 +84,31 @@ def analyze_all_stocks():
                     # Tem a ação na carteira
                     if analysis['current_position'] == 'SELL':
                         RECOMMENDATIONS_COUNTER.labels(action='SELL', stock=stock.codigo).inc()
-                        send_sell_notification(stock.codigo, analysis, portfolio_position)
+                        sell_signals.append({
+                            'stock': stock.codigo,
+                            'analysis': analysis,
+                            'position': portfolio_position
+                        })
                 else:
                     # Não tem a ação na carteira
                     if analysis['new_position'] == 'BUY':
                         RECOMMENDATIONS_COUNTER.labels(action='BUY', stock=stock.codigo).inc()
-                        send_buy_notification(stock.codigo, analysis)
+                        buy_signals.append({
+                            'stock': stock.codigo,
+                            'analysis': analysis
+                        })
                 
                 logging.info(f"✅ {stock.codigo}: {analysis['current_position']}/{analysis['new_position']} - RSI: {analysis['rsi']:.2f}, MACD: {analysis['macd']:.2f}")
                 
             except Exception as e:
                 ANALYSIS_ERRORS.labels(stock=stock.codigo).inc()
-                logging.error(f"❌ Erro ao analisar {stock.codigo}: {str(e)}")
+                error_msg = f"❌ Erro ao analisar {stock.codigo}: {str(e)}"
+                errors.append(error_msg)
+                logging.error(error_msg)
+        
+        # Envia email com resumo de todas as análises
+        if buy_signals or sell_signals or all_analyses:
+            send_analysis_summary_email(buy_signals, sell_signals, all_analyses, errors)
         
         logging.info("🎯 Análise concluída!")
         
@@ -92,89 +117,209 @@ def analyze_all_stocks():
     finally:
         db.close()
 
-def send_buy_notification(stock_code: str, analysis: dict):
-    """Envia notificação de compra"""
-    subject = f"🚀 SINAL DE COMPRA: {stock_code}"
+def send_analysis_summary_email(buy_signals, sell_signals, all_analyses, errors):
+    """Envia email com resumo de todas as análises"""
+    from datetime import datetime
+    
+    current_time = datetime.now().strftime("%d/%m/%Y %H:%M")
+    
+    subject = f"📊 Relatório de Análise - {current_time}"
+    
+    # Cabeçalho
     body = f"""
-    <h2>📈 Sinal de Compra Detectado!</h2>
+    <h1>📊 Relatório de Análise de Ações</h1>
+    <p><strong>Data/Hora:</strong> {current_time}</p>
+    <p><strong>Total de ações analisadas:</strong> {len(all_analyses)}</p>
+    <hr>
+    """
     
-    <h3>🎯 Ação: {stock_code}</h3>
+    # Sinais de compra
+    if buy_signals:
+        body += f"""
+        <h2>🚀 Sinais de Compra ({len(buy_signals)})</h2>
+        <table border="1" style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+            <tr style="background-color: #e8f5e8;">
+                <th>Ação</th>
+                <th>Preço</th>
+                <th>RSI</th>
+                <th>MACD</th>
+                <th>Tendência</th>
+                <th>Stop Loss</th>
+                <th>Take Profit</th>
+            </tr>
+        """
+        
+        for signal in buy_signals:
+            analysis = signal['analysis']
+            body += f"""
+            <tr>
+                <td><strong>{signal['stock']}</strong></td>
+                <td>R$ {analysis['price']:.2f}</td>
+                <td>{analysis['rsi']:.2f}</td>
+                <td>{analysis['macd']:.4f}</td>
+                <td>{analysis['trend']}</td>
+                <td>R$ {analysis['stop_loss']:.2f}</td>
+                <td>R$ {analysis['take_profit']:.2f}</td>
+            </tr>
+            """
+        
+        body += "</table>"
+    else:
+        body += "<h2>🚀 Sinais de Compra</h2><p>Nenhum sinal de compra detectado.</p>"
     
-    <h4>💰 Informações de Preço:</h4>
-    <ul>
-        <li><strong>Preço Atual:</strong> R$ {analysis['price']:.2f}</li>
-        <li><strong>Variação:</strong> {analysis['profit_pct']:.2f}%</li>
-        <li><strong>Stop Loss Sugerido:</strong> R$ {analysis['stop_loss']:.2f}</li>
-        <li><strong>Take Profit Sugerido:</strong> R$ {analysis['take_profit']:.2f}</li>
-    </ul>
+    # Sinais de venda
+    if sell_signals:
+        body += f"""
+        <h2>📉 Sinais de Venda ({len(sell_signals)})</h2>
+        <table border="1" style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+            <tr style="background-color: #ffe8e8;">
+                <th>Ação</th>
+                <th>Preço Atual</th>
+                <th>Preço Médio</th>
+                <th>Quantidade</th>
+                <th>Resultado</th>
+                <th>RSI</th>
+                <th>MACD</th>
+                <th>Tendência</th>
+            </tr>
+        """
+        
+        for signal in sell_signals:
+            analysis = signal['analysis']
+            position = signal['position']
+            
+            # Calcula lucro/prejuízo
+            current_value = position.quantidade * analysis['price']
+            invested_value = position.quantidade * position.preco_medio
+            profit_loss = current_value - invested_value
+            profit_loss_pct = (profit_loss / invested_value) * 100
+            
+            body += f"""
+            <tr>
+                <td><strong>{signal['stock']}</strong></td>
+                <td>R$ {analysis['price']:.2f}</td>
+                <td>R$ {position.preco_medio:.2f}</td>
+                <td>{position.quantidade}</td>
+                <td style="color: {'green' if profit_loss >= 0 else 'red'};">
+                    R$ {profit_loss:.2f} ({profit_loss_pct:+.2f}%)
+                </td>
+                <td>{analysis['rsi']:.2f}</td>
+                <td>{analysis['macd']:.4f}</td>
+                <td>{analysis['trend']}</td>
+            </tr>
+            """
+        
+        body += "</table>"
+    else:
+        body += "<h2>📉 Sinais de Venda</h2><p>Nenhum sinal de venda detectado.</p>"
     
-    <h4>📊 Indicadores Técnicos:</h4>
-    <ul>
-        <li><strong>RSI:</strong> {analysis['rsi']:.2f}</li>
-        <li><strong>MACD:</strong> {analysis['macd']:.2f}</li>
-        <li><strong>Tendência:</strong> {analysis['trend']}</li>
-    </ul>
+    # Resumo geral
+    body += f"""
+    <h2>📈 Resumo Geral</h2>
+    <table border="1" style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+        <tr style="background-color: #f0f0f0;">
+            <th>Métrica</th>
+            <th>Valor</th>
+        </tr>
+        <tr>
+            <td>Total de ações analisadas</td>
+            <td>{len(all_analyses)}</td>
+        </tr>
+        <tr>
+            <td>Sinais de compra</td>
+            <td>{len(buy_signals)}</td>
+        </tr>
+        <tr>
+            <td>Sinais de venda</td>
+            <td>{len(sell_signals)}</td>
+        </tr>
+        <tr>
+            <td>Erros</td>
+            <td>{len(errors)}</td>
+        </tr>
+    </table>
+    """
     
-    <h4>🔍 Condições Identificadas:</h4>
-    <ul>
-        {''.join([f'<li>{condition}</li>' for condition in analysis['conditions']])}
-    </ul>
+    # Top 10 ações por RSI (sobrevenda)
+    if all_analyses:
+        oversold = sorted(all_analyses, key=lambda x: x['analysis']['rsi'])[:10]
+        body += """
+        <h2>🔍 Top 10 - Menor RSI (Sobrevenda)</h2>
+        <table border="1" style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+            <tr style="background-color: #e8f5e8;">
+                <th>Posição</th>
+                <th>Ação</th>
+                <th>RSI</th>
+                <th>Preço</th>
+                <th>Tendência</th>
+            </tr>
+        """
+        
+        for i, item in enumerate(oversold, 1):
+            analysis = item['analysis']
+            body += f"""
+            <tr>
+                <td>{i}º</td>
+                <td><strong>{item['stock']}</strong></td>
+                <td>{analysis['rsi']:.2f}</td>
+                <td>R$ {analysis['price']:.2f}</td>
+                <td>{analysis['trend']}</td>
+            </tr>
+            """
+        
+        body += "</table>"
+        
+        # Top 10 ações por RSI (sobrecompra)
+        overbought = sorted(all_analyses, key=lambda x: x['analysis']['rsi'], reverse=True)[:10]
+        body += """
+        <h2>🔍 Top 10 - Maior RSI (Sobrecompra)</h2>
+        <table border="1" style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+            <tr style="background-color: #ffe8e8;">
+                <th>Posição</th>
+                <th>Ação</th>
+                <th>RSI</th>
+                <th>Preço</th>
+                <th>Tendência</th>
+            </tr>
+        """
+        
+        for i, item in enumerate(overbought, 1):
+            analysis = item['analysis']
+            body += f"""
+            <tr>
+                <td>{i}º</td>
+                <td><strong>{item['stock']}</strong></td>
+                <td>{analysis['rsi']:.2f}</td>
+                <td>R$ {analysis['price']:.2f}</td>
+                <td>{analysis['trend']}</td>
+            </tr>
+            """
+        
+        body += "</table>"
     
+    # Erros (se houver)
+    if errors:
+        body += f"""
+        <h2>❌ Erros Encontrados ({len(errors)})</h2>
+        <ul>
+        """
+        for error in errors:
+            body += f"<li>{error}</li>"
+        body += "</ul>"
+    
+    # Rodapé
+    body += """
+    <hr>
     <p><em>⚠️ Esta é uma análise automatizada. Sempre faça sua própria análise antes de investir.</em></p>
+    <p><em>📊 Relatório gerado automaticamente pelo Trading Bot</em></p>
     """
     
     try:
         send_email_notification(subject, body)
         EMAIL_NOTIFICATIONS.inc()
-        logging.info(f"📧 Notificação de compra enviada para {stock_code}")
+        logging.info(f"📧 Relatório de análise enviado - {len(buy_signals)} compras, {len(sell_signals)} vendas, {len(all_analyses)} análises")
     except Exception as e:
-        logging.error(f"❌ Erro ao enviar notificação de compra para {stock_code}: {str(e)}")
-
-def send_sell_notification(stock_code: str, analysis: dict, position: Carteira):
-    """Envia notificação de venda"""
-    # Calcula lucro/prejuízo
-    current_value = position.quantidade * analysis['price']
-    invested_value = position.quantidade * position.preco_medio
-    profit_loss = current_value - invested_value
-    profit_loss_pct = (profit_loss / invested_value) * 100
-    
-    subject = f"📉 SINAL DE VENDA: {stock_code}"
-    body = f"""
-    <h2>📉 Sinal de Venda Detectado!</h2>
-    
-    <h3>🎯 Ação: {stock_code}</h3>
-    
-    <h4>💰 Sua Posição:</h4>
-    <ul>
-        <li><strong>Quantidade:</strong> {position.quantidade} ações</li>
-        <li><strong>Preço Médio:</strong> R$ {position.preco_medio:.2f}</li>
-        <li><strong>Preço Atual:</strong> R$ {analysis['price']:.2f}</li>
-        <li><strong>Valor Investido:</strong> R$ {invested_value:.2f}</li>
-        <li><strong>Valor Atual:</strong> R$ {current_value:.2f}</li>
-        <li><strong>Resultado:</strong> R$ {profit_loss:.2f} ({profit_loss_pct:+.2f}%)</li>
-    </ul>
-    
-    <h4>📊 Indicadores Técnicos:</h4>
-    <ul>
-        <li><strong>RSI:</strong> {analysis['rsi']:.2f}</li>
-        <li><strong>MACD:</strong> {analysis['macd']:.2f}</li>
-        <li><strong>Tendência:</strong> {analysis['trend']}</li>
-    </ul>
-    
-    <h4>🔍 Condições Identificadas:</h4>
-    <ul>
-        {''.join([f'<li>{condition}</li>' for condition in analysis['conditions']])}
-    </ul>
-    
-    <p><em>⚠️ Esta é uma análise automatizada. Sempre faça sua própria análise antes de investir.</em></p>
-    """
-    
-    try:
-        send_email_notification(subject, body)
-        EMAIL_NOTIFICATIONS.inc()
-        logging.info(f"📧 Notificação de venda enviada para {stock_code}")
-    except Exception as e:
-        logging.error(f"❌ Erro ao enviar notificação de venda para {stock_code}: {str(e)}")
+        logging.error(f"❌ Erro ao enviar relatório de análise: {str(e)}")
 
 def main():
     """Função principal do bot"""

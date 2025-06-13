@@ -1,56 +1,55 @@
-import smtplib
 import os
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
+import requests
 import logging
 
 def send_email_notification(subject: str, body: str, to_email: str = None) -> bool:
     """
-    Envia notificação por email
+    Envia notificação por email usando Resend API
     
     Args:
         subject: Assunto do email
         body: Corpo do email (HTML)
-        to_email: Email de destino (opcional, usa EMAIL_USER se não fornecido)
+        to_email: Email de destino (opcional, usa EMAIL_TO se não fornecido)
     
     Returns:
         bool: True se enviado com sucesso, False caso contrário
     """
     try:
-        # Configurações de email
-        email_host = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-        email_port = int(os.getenv('EMAIL_PORT', '587'))
-        email_user = os.getenv('EMAIL_USER')
-        email_password = os.getenv('EMAIL_PASSWORD')
+        # Configurações do Resend
+        resend_api_key = os.getenv('RESEND_API_KEY')
+        email_from = os.getenv('EMAIL_FROM')
+        email_to = os.getenv('EMAIL_TO', to_email)
         
-        if not email_user or not email_password:
+        if not resend_api_key or not email_from or not email_to:
             logging.warning("Configurações de email não encontradas. Pulando notificação.")
             return False
         
-        # Email de destino
-        if not to_email:
-            to_email = email_user
+        # URL da API do Resend
+        url = "https://api.resend.com/emails"
         
-        # Cria mensagem
-        msg = MIMEMultipart('alternative')
-        msg['From'] = email_user
-        msg['To'] = to_email
-        msg['Subject'] = subject
+        # Headers
+        headers = {
+            "Authorization": f"Bearer {resend_api_key}",
+            "Content-Type": "application/json"
+        }
         
-        # Adiciona corpo HTML
-        html_part = MIMEText(body, 'html')
-        msg.attach(html_part)
+        # Dados do email
+        data = {
+            "from": email_from,
+            "to": [email_to],
+            "subject": subject,
+            "html": body
+        }
         
-        # Envia email
-        with smtplib.SMTP(email_host, email_port) as server:
-            server.starttls()
-            server.login(email_user, email_password)
-            server.send_message(msg)
+        # Envia email via API
+        response = requests.post(url, headers=headers, json=data)
         
-        logging.info(f"Email enviado com sucesso para {to_email}")
-        return True
+        if response.status_code == 200:
+            logging.info(f"Email enviado com sucesso para {email_to}")
+            return True
+        else:
+            logging.error(f"Erro ao enviar email: {response.status_code} - {response.text}")
+            return False
         
     except Exception as e:
         logging.error(f"Erro ao enviar email: {str(e)}")
