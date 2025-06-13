@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import AnalisePage from './pages/AnalisePage';
+import CarteiraPage from './pages/CarteiraPage';
 import './styles/global.css';
 
 const App: React.FC = () => {
@@ -12,7 +13,7 @@ const App: React.FC = () => {
         <Routes>
           <Route path="/" element={<Navigate to="/analise" replace />} />
           <Route path="/analise" element={<AnalisePage />} />
-          <Route path="/carteira" element={<div className="main-content"><h1>Carteira</h1><p>Em desenvolvimento...</p></div>} />
+          <Route path="/carteira" element={<CarteiraPage />} />
         </Routes>
       </div>
     </Router>
