@@ -1,0 +1,125 @@
+version: '3.8'
+
+services:
+  trading-bot:
+    build: .
+    container_name: trading-bot
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./.env:/app/.env
+    ports:
+      - "8000:8000"  # Prometheus
+    environment:
+      - TZ=America/Sao_Paulo
+    networks:
+      - trading-net
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "logging=promtail"
+
+  trading-api:
+    build: .
+    container_name: trading-api
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./.env:/app/.env
+    ports:
+      - "8001:8001"  # API REST
+    environment:
+      - TZ=America/Sao_Paulo
+    networks:
+      - trading-net
+    restart: unless-stopped
+    command: python -m uvicorn src.api.api:app --host 0.0.0.0 --port 8001 --reload
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "logging=promtail"
+
+  trading-web:
+    build: ./src/frontend/trading-web
+    container_name: trading-web
+    ports:
+      - "3000:3000"  # Frontend React
+    environment:
+      - TZ=America/Sao_Paulo
+    networks:
+      - trading-net
+    restart: unless-stopped
+    depends_on:
+      - trading-api
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "logging=promtail"
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./src/backend/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - trading-net
+
+  grafana:
+    image: grafana/grafana-oss
+    ports:
+      - "3030:3000"
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./src/backend/monitoring/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/trading-bot.yml:ro
+      - ./src/backend/monitoring/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./src/backend/monitoring/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      # Configurações de datasources automáticos
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - trading-net
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - trading-net
+
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./src/backend/monitoring/promtail.yml:/etc/promtail/config.yml
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    networks:
+      - trading-net
+    user: root  # Necessário para acessar o socket do Docker
+
+networks:
+  trading-net:
+    driver: bridge
+
+volumes:
+  grafana-storage:

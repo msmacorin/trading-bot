@@ -1,0 +1,128 @@
+apiVersion: 1
+
+providers:
+  - name: 'Trading Bot'
+    orgId: 1
+    folder: 'Trading Bot'
+    folderUid: ''
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: true
+
+dashboards:
+  - name: Trading Overview
+    uid: trading-overview
+    panels:
+      - title: Análises por Hora
+        type: graph
+        datasource: Prometheus
+        targets:
+          - expr: rate(stock_recommendations_total[1h])
+            legendFormat: "{{type}}"
+      
+      - title: Últimos Sinais de Compra/Venda
+        type: table
+        datasource: Loki
+        targets:
+          - expr: '{container="trading-bot"} |= "Enviando notificação"'
+            refId: A
+      
+      - title: Erros nas Últimas 24h
+        type: stat
+        datasource: Loki
+        targets:
+          - expr: 'count_over_time({container="trading-bot"} |= "ERROR" [24h])'
+
+  - name: Trading Analytics
+    uid: trading-analytics
+    panels:
+      - title: Recomendações por Hora
+        type: timeseries
+        datasource: Prometheus
+        targets:
+          - expr: rate(stock_recommendations_total[1h])
+            legendFormat: "{{type}}"
+      
+      - title: Total de Ações Analisadas
+        type: stat
+        datasource: Prometheus
+        targets:
+          - expr: stocks_analyzed_total
+      
+      - title: Duração Média dos Ciclos
+        type: timeseries
+        datasource: Prometheus
+        targets:
+          - expr: rate(analysis_cycle_duration_seconds_sum[5m]) / rate(analysis_cycle_duration_seconds_count[5m])
+            legendFormat: "Duração Média"
+      
+      - title: Total de Erros
+        type: stat
+        datasource: Prometheus
+        targets:
+          - expr: analysis_errors_total
+      
+      - title: RSI por Ação
+        type: table
+        datasource: Prometheus
+        targets:
+          - expr: stock_rsi
+      
+      - title: MACD por Ação
+        type: table
+        datasource: Prometheus
+        targets:
+          - expr: stock_macd
+      
+      - title: Tendência por Ação
+        type: table
+        datasource: Prometheus
+        targets:
+          - expr: stock_trend
+      
+      - title: Recomendações de Compra/Venda
+        type: table
+        datasource: Prometheus
+        targets:
+          - expr: stock_position{position_type="new"}
+
+  - name: Logs e Alertas
+    uid: logs-alerts
+    panels:
+      - title: Log de Erros
+        type: logs
+        datasource: Loki
+        targets:
+          - expr: '{container="trading-bot"} |= "ERROR"'
+      
+      - title: Emails Enviados
+        type: logs
+        datasource: Loki
+        targets:
+          - expr: '{container="trading-bot"} |= "Email enviado com sucesso"'
+      
+      - title: Análises com Problemas
+        type: table
+        datasource: Loki
+        targets:
+          - expr: '{container="trading-bot"} |= "Erro ao analisar"'
+
+  - name: Métricas de Performance
+    uid: performance-metrics
+    panels:
+      - title: Tempo de Análise por Ação
+        type: graph
+        datasource: Prometheus
+        targets:
+          - expr: rate(stock_analysis_duration_seconds_sum[5m]) / rate(stock_analysis_duration_seconds_count[5m])
+      
+      - title: Top 5 Ações Mais Lentas
+        type: table
+        datasource: Prometheus
+        targets:
+          - expr: topk(5, stock_analysis_duration_seconds_sum / stock_analysis_duration_seconds_count) 
