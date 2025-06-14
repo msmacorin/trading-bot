@@ -54,6 +54,7 @@ class CarteiraResponse(CarteiraBase):
         from_attributes = True
 
 class AnaliseResponse(BaseModel):
+    codigo: str = Field(..., description="Código da ação analisada")
     current_position: str = Field(..., description="Recomendação para quem já tem a ação (SELL, HOLD)")
     new_position: str = Field(..., description="Recomendação para quem não tem a ação (BUY, WAIT)")
     price: float = Field(..., description="Preço atual")
@@ -144,7 +145,10 @@ def analisar_acao(codigo: str):
     - Condições identificadas
     """
     try:
-        return analyze_stock(codigo)
+        analysis = analyze_stock(codigo)
+        # Adiciona o código da ação ao resultado
+        analysis['codigo'] = codigo
+        return analysis
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
