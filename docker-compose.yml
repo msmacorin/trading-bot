@@ -9,12 +9,14 @@ services:
       - ./logs:/app/logs
       - ./.env:/app/.env
     ports:
-      - "8000:8000"  # Prometheus
+      - "0.0.0.0:8002:8000"  # Prometheus - acessível externamente na porta 8002
     environment:
       - TZ=America/Sao_Paulo
+      - PYTHONPATH=/app
     networks:
       - trading-net
     restart: unless-stopped
+    command: python src/backend/app.py
     logging:
       driver: "json-file"
       options:
@@ -31,13 +33,16 @@ services:
       - ./logs:/app/logs
       - ./.env:/app/.env
     ports:
-      - "8001:8001"  # API REST
+      - "0.0.0.0:8000:8001"  # API REST - acessível externamente na porta 8000
     environment:
       - TZ=America/Sao_Paulo
+      - PYTHONPATH=/app
     networks:
       - trading-net
     restart: unless-stopped
-    command: python -m uvicorn src.api.api:app --host 0.0.0.0 --port 8001 --reload
+    command: python -m uvicorn src.backend.api:app --host 0.0.0.0 --port 8001 --reload
+    depends_on:
+      - trading-bot
     logging:
       driver: "json-file"
       options:
@@ -47,12 +52,15 @@ services:
       - "logging=promtail"
 
   trading-web:
-    build: ./src/frontend/trading-web
+    build: 
+      context: .
+      dockerfile: src/frontend/trading-web/Dockerfile
     container_name: trading-web
     ports:
-      - "3000:3000"  # Frontend React
+      - "0.0.0.0:3000:3000"  # Frontend React - acessível externamente
     environment:
       - TZ=America/Sao_Paulo
+      - REACT_APP_API_URL=http://localhost:8000
     networks:
       - trading-net
     restart: unless-stopped
@@ -68,17 +76,27 @@ services:
 
   prometheus:
     image: prom/prometheus
+    container_name: prometheus
     ports:
-      - "9090:9090"
+      - "0.0.0.0:9090:9090"  # Prometheus UI - acessível externamente
     volumes:
       - ./src/backend/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
     networks:
       - trading-net
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "logging=promtail"
 
   grafana:
     image: grafana/grafana-oss
+    container_name: grafana
     ports:
-      - "3030:3000"
+      - "0.0.0.0:3030:3000"  # Grafana - acessível externamente
     volumes:
       - grafana-storage:/var/lib/grafana
       - ./src/backend/monitoring/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/trading-bot.yml:ro
@@ -87,7 +105,6 @@ services:
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
-      # Configurações de datasources automáticos
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
     depends_on:
@@ -95,17 +112,35 @@ services:
       - loki
     networks:
       - trading-net
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "logging=promtail"
 
   loki:
     image: grafana/loki:latest
+    container_name: loki
     ports:
-      - "3100:3100"
+      - "0.0.0.0:3100:3100"  # Loki - acessível externamente
     command: -config.file=/etc/loki/local-config.yaml
     networks:
       - trading-net
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "logging=promtail"
 
   promtail:
     image: grafana/promtail:latest
+    container_name: promtail
     volumes:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - ./src/backend/monitoring/promtail.yml:/etc/promtail/config.yml
@@ -116,6 +151,14 @@ services:
     networks:
       - trading-net
     user: root  # Necessário para acessar o socket do Docker
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "logging=promtail"
 
 networks:
   trading-net:

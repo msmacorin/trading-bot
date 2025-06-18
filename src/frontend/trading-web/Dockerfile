@@ -1,31 +1,31 @@
-# Build stage
+# Estágio de build
 FROM node:18-alpine as build
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copia arquivos de dependências
+COPY src/frontend/trading-web/package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Instala dependências
+RUN npm install
 
-# Copy source code
-COPY . .
+# Copia o código fonte
+COPY src/frontend/trading-web/ ./
 
-# Build the app
+# Build da aplicação
 RUN npm run build
 
-# Production stage
+# Estágio de produção
 FROM nginx:alpine
 
-# Copy built app from build stage
+# Copia os arquivos de build
 COPY --from=build /app/build /usr/share/nginx/html
 
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+# Copia configuração do nginx
+COPY src/frontend/trading-web/nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose port 3000
+# Expõe a porta 3000
 EXPOSE 3000
 
-# Start nginx
+# Inicia o nginx
 CMD ["nginx", "-g", "daemon off;"] 

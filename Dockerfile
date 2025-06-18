@@ -1,31 +1,30 @@
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
 # Instala dependências do sistema
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    gcc \
-    python3-dev \
-    sqlite3 \
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copia os arquivos de requisitos primeiro para aproveitar o cache do Docker
+# Copia arquivos de dependências
 COPY requirements.txt .
+
+# Instala dependências Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia o código da aplicação
-COPY src/ src/
-COPY config/ config/
-COPY .env .
+# Copia o código fonte
+COPY . .
 
-# Define as variáveis de ambiente padrão (podem ser sobrescritas no docker-compose)
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
+# Cria diretórios necessários
+RUN mkdir -p config logs
 
-# Expõe as portas
-EXPOSE 8000
-EXPOSE 8001
+# Inicializa o banco de dados
+RUN python src/backend/init_db.py
 
-# Executa o bot
+# Expõe as portas necessárias
+EXPOSE 8000 8001
+
+# Comando padrão (será sobrescrito pelo docker-compose)
 CMD ["python", "src/backend/app.py"]

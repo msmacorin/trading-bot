@@ -1,12 +1,31 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const Sidebar: React.FC = () => {
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+  };
+
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <h1>Trading Bot</h1>
+        <h1>🤖 Trading Bot</h1>
+        {user && (
+          <div className="user-info">
+            <div className="user-avatar">
+              👤
+            </div>
+            <div className="user-details">
+              <div className="user-name">{user.nome}</div>
+              <div className="user-email">{user.email}</div>
+            </div>
+          </div>
+        )}
       </div>
+      
       <nav className="sidebar-nav">
         <ul>
           <li>
@@ -26,6 +45,12 @@ const Sidebar: React.FC = () => {
           </li>
         </ul>
       </nav>
+      
+      <div className="sidebar-footer">
+        <button onClick={handleLogout} className="logout-button">
+          🚪 Sair
+        </button>
+      </div>
     </div>
   );
 };

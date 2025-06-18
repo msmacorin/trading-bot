@@ -7,9 +7,9 @@ from prometheus_client import start_http_server, Counter, Histogram, Gauge
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from database import SessionLocal, Acao, Carteira
-from analyzer import analyze_stock
-from notifier import send_email_notification
+from backend.database import SessionLocal, Acao, Carteira, Usuario, get_acoes_ativas, get_carteira
+from backend.analyzer import analyze_stock
+from backend.notifier import send_email_notification
 
 # Configuração de logging
 logging.basicConfig(
@@ -22,14 +22,14 @@ logging.basicConfig(
 )
 
 # Métricas Prometheus
-RECOMMENDATIONS_COUNTER = Counter('trading_recommendations_total', 'Total de recomendações', ['action', 'stock'])
+RECOMMENDATIONS_COUNTER = Counter('trading_recommendations_total', 'Total de recomendações', ['action', 'stock', 'user_id'])
 ANALYSIS_DURATION = Histogram('analysis_duration_seconds', 'Duração da análise em segundos')
-RSI_GAUGE = Gauge('stock_rsi', 'RSI da ação', ['stock'])
-MACD_GAUGE = Gauge('stock_macd', 'MACD da ação', ['stock'])
-PRICE_GAUGE = Gauge('stock_price', 'Preço atual da ação', ['stock'])
-TREND_GAUGE = Gauge('stock_trend', 'Tendência da ação (1=UP, 0=DOWN)', ['stock'])
-EMAIL_NOTIFICATIONS = Counter('email_notifications_total', 'Total de notificações por email enviadas')
-ANALYSIS_ERRORS = Counter('analysis_errors_total', 'Total de erros na análise', ['stock'])
+RSI_GAUGE = Gauge('stock_rsi', 'RSI da ação', ['stock', 'user_id'])
+MACD_GAUGE = Gauge('stock_macd', 'MACD da ação', ['stock', 'user_id'])
+PRICE_GAUGE = Gauge('stock_price', 'Preço atual da ação', ['stock', 'user_id'])
+TREND_GAUGE = Gauge('stock_trend', 'Tendência da ação (1=UP, 0=DOWN)', ['stock', 'user_id'])
+EMAIL_NOTIFICATIONS = Counter('email_notifications_total', 'Total de notificações por email enviadas', ['user_id'])
+ANALYSIS_ERRORS = Counter('analysis_errors_total', 'Total de erros na análise', ['stock', 'user_id'])
 
 def get_db():
     db = SessionLocal()
@@ -38,15 +38,21 @@ def get_db():
     finally:
         db.close()
 
-def analyze_all_stocks():
-    """Analisa todas as ações cadastradas e envia notificações"""
-    logging.info("🔄 Iniciando análise de todas as ações...")
+def analyze_user_stocks(usuario_id):
+    """Analisa todas as ações de um usuário específico"""
+    logging.info(f"🔄 Iniciando análise das ações do usuário {usuario_id}...")
     
     db = SessionLocal()
     try:
-        # Busca todas as ações ativas
-        stocks = db.query(Acao).filter(Acao.ativo == True).all()
-        logging.info(f"📊 Analisando {len(stocks)} ações...")
+        # Busca o usuário
+        usuario = db.query(Usuario).filter(Usuario.id == usuario_id, Usuario.ativo == True).first()
+        if not usuario:
+            logging.warning(f"⚠️ Usuário {usuario_id} não encontrado ou inativo")
+            return
+        
+        # Busca todas as ações ativas do usuário
+        stocks = get_acoes_ativas(usuario_id)
+        logging.info(f"📊 Analisando {len(stocks)} ações do usuário {usuario.nome}...")
         
         # Listas para armazenar resultados
         buy_signals = []
@@ -65,10 +71,10 @@ def analyze_all_stocks():
                 duration = time.time() - start_time
                 ANALYSIS_DURATION.observe(duration)
                 
-                RSI_GAUGE.labels(stock=stock.codigo).set(analysis['rsi'])
-                MACD_GAUGE.labels(stock=stock.codigo).set(analysis['macd'])
-                PRICE_GAUGE.labels(stock=stock.codigo).set(analysis['price'])
-                TREND_GAUGE.labels(stock=stock.codigo).set(1 if analysis['trend'] == 'UP' else 0)
+                RSI_GAUGE.labels(stock=stock.codigo, user_id=usuario_id).set(analysis['rsi'])
+                MACD_GAUGE.labels(stock=stock.codigo, user_id=usuario_id).set(analysis['macd'])
+                PRICE_GAUGE.labels(stock=stock.codigo, user_id=usuario_id).set(analysis['price'])
+                TREND_GAUGE.labels(stock=stock.codigo, user_id=usuario_id).set(1 if analysis['trend'] == 'UP' else 0)
                 
                 # Adiciona à lista de todas as análises
                 all_analyses.append({
@@ -76,14 +82,17 @@ def analyze_all_stocks():
                     'analysis': analysis
                 })
                 
-                # Verifica se há posição na carteira
-                portfolio_position = db.query(Carteira).filter(Carteira.codigo == stock.codigo).first()
+                # Verifica se há posição na carteira do usuário
+                portfolio_position = db.query(Carteira).filter(
+                    Carteira.codigo == stock.codigo, 
+                    Carteira.usuario_id == usuario_id
+                ).first()
                 
                 # Lógica de notificação
                 if portfolio_position:
                     # Tem a ação na carteira
                     if analysis['current_position'] == 'SELL':
-                        RECOMMENDATIONS_COUNTER.labels(action='SELL', stock=stock.codigo).inc()
+                        RECOMMENDATIONS_COUNTER.labels(action='SELL', stock=stock.codigo, user_id=usuario_id).inc()
                         sell_signals.append({
                             'stock': stock.codigo,
                             'analysis': analysis,
@@ -92,42 +101,64 @@ def analyze_all_stocks():
                 else:
                     # Não tem a ação na carteira
                     if analysis['new_position'] == 'BUY':
-                        RECOMMENDATIONS_COUNTER.labels(action='BUY', stock=stock.codigo).inc()
+                        RECOMMENDATIONS_COUNTER.labels(action='BUY', stock=stock.codigo, user_id=usuario_id).inc()
                         buy_signals.append({
                             'stock': stock.codigo,
                             'analysis': analysis
                         })
                 
-                logging.info(f"✅ {stock.codigo}: {analysis['current_position']}/{analysis['new_position']} - RSI: {analysis['rsi']:.2f}, MACD: {analysis['macd']:.2f}")
+                logging.info(f"✅ {stock.codigo} (Usuário {usuario.nome}): {analysis['current_position']}/{analysis['new_position']} - RSI: {analysis['rsi']:.2f}, MACD: {analysis['macd']:.2f}")
                 
             except Exception as e:
-                ANALYSIS_ERRORS.labels(stock=stock.codigo).inc()
-                error_msg = f"❌ Erro ao analisar {stock.codigo}: {str(e)}"
+                ANALYSIS_ERRORS.labels(stock=stock.codigo, user_id=usuario_id).inc()
+                error_msg = f"❌ Erro ao analisar {stock.codigo} (Usuário {usuario.nome}): {str(e)}"
                 errors.append(error_msg)
                 logging.error(error_msg)
         
-        # Envia email com resumo de todas as análises
+        # Envia email com resumo das análises do usuário
         if buy_signals or sell_signals or all_analyses:
-            send_analysis_summary_email(buy_signals, sell_signals, all_analyses, errors)
+            send_user_analysis_summary_email(usuario, buy_signals, sell_signals, all_analyses, errors)
         
-        logging.info("🎯 Análise concluída!")
+        logging.info(f"🎯 Análise do usuário {usuario.nome} concluída!")
+        
+    except Exception as e:
+        logging.error(f"❌ Erro geral na análise do usuário {usuario_id}: {str(e)}")
+    finally:
+        db.close()
+
+def analyze_all_stocks():
+    """Analisa todas as ações de todos os usuários ativos"""
+    logging.info("🔄 Iniciando análise de todas as ações de todos os usuários...")
+    
+    db = SessionLocal()
+    try:
+        # Busca todos os usuários ativos
+        usuarios = db.query(Usuario).filter(Usuario.ativo == True).all()
+        logging.info(f"👥 Analisando ações de {len(usuarios)} usuários...")
+        
+        for usuario in usuarios:
+            analyze_user_stocks(usuario.id)
+        
+        logging.info("🎯 Análise de todos os usuários concluída!")
         
     except Exception as e:
         logging.error(f"❌ Erro geral na análise: {str(e)}")
     finally:
         db.close()
 
-def send_analysis_summary_email(buy_signals, sell_signals, all_analyses, errors):
-    """Envia email com resumo de todas as análises"""
+def send_user_analysis_summary_email(usuario, buy_signals, sell_signals, all_analyses, errors):
+    """Envia email com resumo das análises de um usuário específico"""
     from datetime import datetime
     
     current_time = datetime.now().strftime("%d/%m/%Y %H:%M")
     
-    subject = f"📊 Relatório de Análise - {current_time}"
+    subject = f"📊 Relatório de Análise - {usuario.nome} - {current_time}"
     
-    # Cabeçalho
+    # Cabeçalho personalizado
     body = f"""
     <h1>📊 Relatório de Análise de Ações</h1>
+    <p><strong>Usuário:</strong> {usuario.nome}</p>
+    <p><strong>Email:</strong> {usuario.email}</p>
     <p><strong>Data/Hora:</strong> {current_time}</p>
     <p><strong>Total de ações analisadas:</strong> {len(all_analyses)}</p>
     <hr>
@@ -316,10 +347,10 @@ def send_analysis_summary_email(buy_signals, sell_signals, all_analyses, errors)
     
     try:
         send_email_notification(subject, body)
-        EMAIL_NOTIFICATIONS.inc()
-        logging.info(f"📧 Relatório de análise enviado - {len(buy_signals)} compras, {len(sell_signals)} vendas, {len(all_analyses)} análises")
+        EMAIL_NOTIFICATIONS.labels(user_id=usuario.id).inc()
+        logging.info(f"📧 Relatório de análise enviado para {usuario.nome} - {len(buy_signals)} compras, {len(sell_signals)} vendas, {len(all_analyses)} análises")
     except Exception as e:
-        logging.error(f"❌ Erro ao enviar relatório de análise: {str(e)}")
+        logging.error(f"❌ Erro ao enviar relatório de análise para {usuario.nome}: {str(e)}")
 
 def main():
     """Função principal do bot"""
