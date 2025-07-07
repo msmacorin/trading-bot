@@ -7,9 +7,9 @@ from prometheus_client import start_http_server, Counter, Histogram, Gauge
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from backend.database import SessionLocal, Acao, Carteira, Usuario, get_acoes_ativas, get_carteira
-from backend.analyzer import analyze_stock
-from backend.notifier import send_email_notification
+from src.backend.analyzer import analyze_stock
+from src.backend.notifier import send_email_notification
+from src.backend.database import SessionLocal, Acao, Carteira, Usuario, get_acoes_ativas, get_carteira
 
 # Configuração de logging
 logging.basicConfig(

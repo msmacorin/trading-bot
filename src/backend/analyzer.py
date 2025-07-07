@@ -108,6 +108,23 @@ def analyze_stock(stock_code: str) -> Dict:
         
     except Exception as e:
         logging.error(f"Erro ao analisar {stock_code}: {str(e)}")
+        
+        # Se for erro de rate limit ou conectividade, retorna dados simulados
+        if "429" in str(e) or "Expecting value" in str(e) or "Failed to get ticker" in str(e):
+            print(f"API indisponível para {stock_code}, retornando dados simulados")
+            return {
+                "current_position": "HOLD",
+                "new_position": "WAIT",
+                "price": 0.0,
+                "stop_loss": 0.0,
+                "take_profit": 0.0,
+                "profit_pct": 0.0,
+                "rsi": 50.0,
+                "macd": 0.0,
+                "trend": "NEUTRAL",
+                "conditions": ["API de dados indisponível no momento", "Use dados simulados para teste"]
+            }
+        
         raise ValueError(f"Erro na análise de {stock_code}: {str(e)}")
 
 if __name__ == "__main__":

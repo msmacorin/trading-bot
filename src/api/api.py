@@ -10,8 +10,8 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
 from src.backend.database import SessionLocal, Acao, Carteira, criar_usuario
-from analyzer import analyze_stock
-from auth import obter_usuario_atual, autenticar_e_criar_token
+from src.backend.analyzer import analyze_stock
+from src.backend.auth import obter_usuario_atual, autenticar_e_criar_token
 
 app = FastAPI(
     title="Trading Bot API",

@@ -267,4 +267,16 @@ async def atualizar_posicao(
 @app.get("/api/usuario/atual")
 async def usuario_atual(usuario = Depends(obter_usuario_atual)):
     """Retorna dados do usuário atual"""
-    return usuario 
+    return usuario
+
+# Endpoint de análise
+@app.get("/api/acoes/{codigo}/analise")
+async def analisar_acao(codigo: str):
+    """Realiza análise técnica de uma ação específica"""
+    try:
+        from src.backend.analyzer import analyze_stock
+        analysis = analyze_stock(codigo)
+        analysis['codigo'] = codigo
+        return analysis
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) 
