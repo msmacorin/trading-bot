@@ -272,11 +272,105 @@ async def usuario_atual(usuario = Depends(obter_usuario_atual)):
 # Endpoint de análise
 @app.get("/api/acoes/{codigo}/analise")
 async def analisar_acao(codigo: str):
-    """Realiza análise técnica de uma ação específica"""
+    """Realiza análise técnica de uma ação específica usando múltiplos provedores"""
     try:
         from src.backend.analyzer import analyze_stock
         analysis = analyze_stock(codigo)
         analysis['codigo'] = codigo
         return analysis
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e)) 
+        raise HTTPException(status_code=400, detail=str(e))
+
+# Endpoint para testar provedores de dados
+@app.get("/api/system/data-providers/test")
+async def testar_provedores(symbols: str = "PETR4,VALE3,ITUB4"):
+    """
+    Testa todos os provedores de dados disponíveis
+    
+    Args:
+        symbols: Símbolos para teste separados por vírgula (ex: PETR4,VALE3)
+    """
+    try:
+        from src.backend.analyzer import test_data_providers
+        symbol_list = [s.strip() for s in symbols.split(',')]
+        results = test_data_providers(symbol_list)
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao testar provedores: {str(e)}")
+
+# Endpoint para obter informações do sistema de dados
+@app.get("/api/system/data-providers/status")
+async def status_provedores():
+    """Retorna o status atual dos provedores de dados"""
+    try:
+        from src.backend.data_providers import data_manager
+        from src.backend.config import DataProviderConfig
+        import pandas as pd
+        
+        # Informações básicas dos provedores
+        providers_info = []
+        for provider in data_manager.providers:
+            providers_info.append({
+                "name": provider.get_provider_name(),
+                "available": getattr(provider, 'available', True),
+                "priority": data_manager.providers.index(provider) + 1
+            })
+        
+        # Status das configurações
+        enabled_providers = DataProviderConfig.get_enabled_providers()
+        api_keys_status = DataProviderConfig.get_api_keys_status()
+        
+        return {
+            "total_providers": len(data_manager.providers),
+            "providers": providers_info,
+            "enabled_providers": enabled_providers,
+            "api_keys_status": api_keys_status,
+            "fallback_enabled": True,
+            "last_check": pd.Timestamp.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao obter status: {str(e)}")
+
+# Endpoint para instruções de configuração
+@app.get("/api/system/data-providers/setup")
+async def instrucoes_setup():
+    """Retorna instruções para configurar provedores de dados"""
+    try:
+        from src.backend.config import API_SETUP_INSTRUCTIONS, DataProviderConfig
+        
+        return {
+            "instructions": API_SETUP_INSTRUCTIONS,
+            "current_config": {
+                "enabled_providers": DataProviderConfig.get_enabled_providers(),
+                "api_keys_status": DataProviderConfig.get_api_keys_status(),
+                "provider_priority": DataProviderConfig.get_provider_priority()
+            },
+            "docker_setup": {
+                "description": "Para configurar em Docker, adicione as variáveis ao docker-compose.yml",
+                "example": {
+                    "environment": [
+                        "- ALPHA_VANTAGE_API_KEY=your_key_here",
+                        "- QUANDL_API_KEY=your_key_here"
+                    ]
+                }
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao obter instruções: {str(e)}")
+
+# Endpoint para estatísticas dos provedores
+@app.get("/api/system/data-providers/stats")
+async def estatisticas_provedores():
+    """Retorna estatísticas detalhadas dos provedores"""
+    try:
+        from src.backend.data_providers import data_manager
+        
+        stats = data_manager.get_provider_statistics()
+        
+        return {
+            "provider_statistics": stats,
+            "total_active_providers": len(data_manager.providers),
+            "timestamp": pd.Timestamp.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao obter estatísticas: {str(e)}") 

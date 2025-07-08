@@ -1,8 +1,16 @@
-import yfinance as yf
+"""
+Módulo de análise técnica de ações
+Usa múltiplos provedores de dados com fallback automático
+"""
+
 import pandas as pd
 import numpy as np
 from typing import Dict, List
 import logging
+from .data_providers import data_manager, create_fallback_data
+
+# Configurar logging
+logger = logging.getLogger(__name__)
 
 def calculate_rsi(data: pd.Series, period: int = 14) -> float:
     """Calcula o RSI (Relative Strength Index)"""
@@ -23,32 +31,49 @@ def calculate_macd(data: pd.Series, fast: int = 12, slow: int = 26, signal: int 
 
 def analyze_stock(stock_code: str) -> Dict:
     """
-    Analisa uma ação usando indicadores técnicos
+    Analisa uma ação usando indicadores técnicos com múltiplos provedores
     
     Args:
-        stock_code: Código da ação (ex: PETR4.SA)
+        stock_code: Código da ação (ex: PETR4.SA ou PETR4)
     
     Returns:
         Dict com análise completa incluindo recomendações
     """
     try:
-        # Busca dados históricos
-        stock = yf.Ticker(stock_code)
-        hist = stock.history(period="1mo")
+        logger.info(f"Iniciando análise de {stock_code}")
         
-        if hist.empty:
-            raise ValueError(f"Não foi possível obter dados para {stock_code}")
+        # Tenta obter dados históricos usando múltiplos provedores
+        hist = data_manager.get_historical_data(stock_code, days=30)
         
-        # Preço atual
+        # Se todos os provedores falharam, usa dados simulados
+        if hist is None or hist.empty:
+            logger.warning(f"Todos os provedores falharam para {stock_code}, usando dados simulados")
+            hist = create_fallback_data(stock_code)
+            using_simulated_data = True
+        else:
+            using_simulated_data = False
+        
+        # Verifica se temos dados suficientes
+        if len(hist) < 5:
+            raise ValueError(f"Dados insuficientes para análise de {stock_code}")
+        
+        # Preço atual (último preço de fechamento)
         current_price = hist['Close'].iloc[-1]
         
-        # Calcula indicadores
+        # Calcula indicadores técnicos
         rsi = calculate_rsi(hist['Close'])
         macd = calculate_macd(hist['Close'])
         
-        # Tendência (média móvel de 20 períodos)
-        ma_20 = hist['Close'].rolling(window=20).mean().iloc[-1]
-        trend = "UP" if current_price > ma_20 else "DOWN"
+        # Tendência baseada em média móvel
+        if len(hist) >= 20:
+            ma_period = 20
+        elif len(hist) >= 10:
+            ma_period = 10
+        else:
+            ma_period = min(5, len(hist))
+        
+        ma = hist['Close'].rolling(window=ma_period).mean().iloc[-1]
+        trend = "UP" if current_price > ma else "DOWN"
         
         # Variação percentual no período
         first_price = hist['Close'].iloc[0]
@@ -58,84 +83,156 @@ def analyze_stock(stock_code: str) -> Dict:
         stop_loss = current_price * 0.97  # -3%
         take_profit = current_price * 1.05  # +5%
         
-        # Lógica de recomendações
+        # Análise de condições de mercado
         conditions = []
         
-        # RSI
+        # Adiciona informação sobre fonte dos dados
+        if using_simulated_data:
+            conditions.append("⚠️ Usando dados simulados (APIs indisponíveis)")
+        else:
+            conditions.append("✅ Dados obtidos de provedor externo")
+        
+        # Análise RSI
         if rsi < 30:
-            conditions.append("RSI indica sobrevenda (< 30)")
+            conditions.append(f"📉 RSI indica sobrevenda ({rsi:.1f})")
         elif rsi > 70:
-            conditions.append("RSI indica sobrecompra (> 70)")
+            conditions.append(f"📈 RSI indica sobrecompra ({rsi:.1f})")
+        else:
+            conditions.append(f"📊 RSI neutro ({rsi:.1f})")
         
-        # MACD
+        # Análise MACD
         if macd > 0:
-            conditions.append("MACD positivo (momentum de alta)")
+            conditions.append("🟢 MACD positivo (momentum de alta)")
         else:
-            conditions.append("MACD negativo (momentum de baixa)")
+            conditions.append("🔴 MACD negativo (momentum de baixa)")
         
-        # Tendência
+        # Análise de tendência
         if trend == "UP":
-            conditions.append("Preço acima da média móvel de 20 períodos")
+            conditions.append(f"⬆️ Preço acima da média móvel ({ma_period} períodos)")
         else:
-            conditions.append("Preço abaixo da média móvel de 20 períodos")
+            conditions.append(f"⬇️ Preço abaixo da média móvel ({ma_period} períodos)")
         
-        # Recomendações
+        # Lógica de recomendações
         current_position = "HOLD"
         new_position = "WAIT"
         
         # Para quem já tem a ação
         if rsi > 70 or (macd < 0 and trend == "DOWN"):
             current_position = "SELL"
-            conditions.append("Sinal de venda para posições existentes")
+            conditions.append("🚨 Sinal de venda para posições existentes")
+        elif rsi < 30 and macd > 0:
+            current_position = "HOLD"
+            conditions.append("💎 Manter posição - possível reversão")
         
         # Para quem não tem a ação
         if rsi < 30 and macd > 0 and trend == "UP":
             new_position = "BUY"
-            conditions.append("Oportunidade de compra identificada")
+            conditions.append("🎯 Oportunidade de compra identificada")
+        elif rsi < 40 and trend == "UP":
+            new_position = "WATCH"
+            conditions.append("👀 Ação em observação para possível compra")
+        
+        # Adiciona informações sobre volume se disponível
+        if 'Volume' in hist.columns:
+            avg_volume = hist['Volume'].tail(5).mean()
+            last_volume = hist['Volume'].iloc[-1]
+            if last_volume > avg_volume * 1.5:
+                conditions.append("📊 Volume acima da média (atividade alta)")
+            elif last_volume < avg_volume * 0.5:
+                conditions.append("📊 Volume abaixo da média (atividade baixa)")
         
         return {
             "current_position": current_position,
             "new_position": new_position,
-            "price": round(current_price, 2),
-            "stop_loss": round(stop_loss, 2),
-            "take_profit": round(take_profit, 2),
-            "profit_pct": round(profit_pct, 2),
-            "rsi": round(rsi, 2),
-            "macd": round(macd, 4),
+            "price": round(float(current_price), 2),
+            "stop_loss": round(float(stop_loss), 2),
+            "take_profit": round(float(take_profit), 2),
+            "profit_pct": round(float(profit_pct), 2),
+            "rsi": round(float(rsi), 2),
+            "macd": round(float(macd), 4),
             "trend": trend,
-            "conditions": conditions
+            "conditions": conditions,
+            "data_source": "simulated" if using_simulated_data else "external",
+            "analysis_timestamp": pd.Timestamp.now().isoformat()
         }
         
     except Exception as e:
-        logging.error(f"Erro ao analisar {stock_code}: {str(e)}")
+        logger.error(f"Erro crítico na análise de {stock_code}: {str(e)}")
         
-        # Se for erro de rate limit ou conectividade, retorna dados simulados
-        if "429" in str(e) or "Expecting value" in str(e) or "Failed to get ticker" in str(e):
-            print(f"API indisponível para {stock_code}, retornando dados simulados")
-            return {
-                "current_position": "HOLD",
-                "new_position": "WAIT",
-                "price": 0.0,
-                "stop_loss": 0.0,
-                "take_profit": 0.0,
-                "profit_pct": 0.0,
-                "rsi": 50.0,
-                "macd": 0.0,
-                "trend": "NEUTRAL",
-                "conditions": ["API de dados indisponível no momento", "Use dados simulados para teste"]
-            }
+        # Fallback final com dados mínimos
+        return {
+            "current_position": "HOLD",
+            "new_position": "WAIT",
+            "price": 25.00,
+            "stop_loss": 24.25,
+            "take_profit": 26.25,
+            "profit_pct": 0.0,
+            "rsi": 50.0,
+            "macd": 0.0,
+            "trend": "NEUTRAL",
+            "conditions": [
+                "❌ Erro na análise técnica",
+                f"🔧 Detalhes: {str(e)}",
+                "📋 Dados de fallback apresentados"
+            ],
+            "data_source": "fallback",
+            "analysis_timestamp": pd.Timestamp.now().isoformat()
+        }
+
+def test_data_providers(symbols: List[str] = None) -> Dict:
+    """
+    Testa todos os provedores de dados disponíveis
+    
+    Args:
+        symbols: Lista de símbolos para teste
         
-        raise ValueError(f"Erro na análise de {stock_code}: {str(e)}")
+    Returns:
+        Relatório de testes dos provedores
+    """
+    if symbols is None:
+        symbols = ['PETR4', 'VALE3', 'ITUB4']
+    
+    logger.info("Testando provedores de dados...")
+    results = data_manager.test_providers(symbols)
+    
+    # Adiciona resumo
+    total_providers = len(results)
+    working_providers = sum(1 for p in results.values() 
+                           if any(t['success'] for t in p['tests'].values()))
+    
+    results['summary'] = {
+        'total_providers': total_providers,
+        'working_providers': working_providers,
+        'availability_rate': working_providers / total_providers if total_providers > 0 else 0
+    }
+    
+    return results
 
 if __name__ == "__main__":
-    # Teste da função
-    test_stocks = ["PETR4.SA", "VALE3.SA", "ITUB4.SA"]
+    # Testa o sistema com algumas ações
+    test_stocks = ["PETR4", "VALE3", "ITUB4"]
     
+    print("=== Teste do Sistema de Análise ===\n")
+    
+    # Testa provedores
+    print("1. Testando provedores de dados...")
+    provider_results = test_data_providers()
+    print(f"Provedores funcionais: {provider_results['summary']['working_providers']}/{provider_results['summary']['total_providers']}")
+    print()
+    
+    # Testa análises
+    print("2. Testando análises...")
     for stock in test_stocks:
         try:
             print(f"\n=== Análise de {stock} ===")
             result = analyze_stock(stock)
-            for key, value in result.items():
-                print(f"{key}: {value}")
+            
+            print(f"Preço: R$ {result['price']}")
+            print(f"Recomendação (posição atual): {result['current_position']}")
+            print(f"Recomendação (nova posição): {result['new_position']}")
+            print(f"RSI: {result['rsi']}")
+            print(f"Fonte dos dados: {result['data_source']}")
+            print(f"Condições: {result['conditions'][:3]}")  # Primeiras 3 condições
+            
         except Exception as e:
             print(f"Erro ao analisar {stock}: {e}")

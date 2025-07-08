@@ -11,8 +11,8 @@ services:
     ports:
       - "0.0.0.0:8002:8000"  # Prometheus - acessível externamente na porta 8002
     environment:
-      - TZ=America/Sao_Paulo
-      - PYTHONPATH=/app
+      - TZ=${TZ}
+      - PYTHONPATH=${PYTHONPATH}
     networks:
       - trading-net
     restart: unless-stopped
@@ -35,8 +35,12 @@ services:
     ports:
       - "0.0.0.0:8000:8001"  # API REST - acessível externamente na porta 8000
     environment:
-      - TZ=America/Sao_Paulo
-      - PYTHONPATH=/app
+      - TZ=${TZ}
+      - PYTHONPATH=${PYTHONPATH}
+      - HG_FINANCE_API_KEY=${HG_FINANCE_API_KEY}
+      - BRAPI_API_KEY=${BRAPI_API_KEY}
+      - ALPHA_VANTAGE_API_KEY=${ALPHA_VANTAGE_API_KEY}
+      - QUANDL_API_KEY=${QUANDL_API_KEY}
     networks:
       - trading-net
     restart: unless-stopped
@@ -59,7 +63,7 @@ services:
     ports:
       - "0.0.0.0:3000:3000"  # Frontend React - acessível externamente
     environment:
-      - TZ=America/Sao_Paulo
+      - TZ=${TZ}
       - REACT_APP_API_URL=http://localhost:8000
     networks:
       - trading-net

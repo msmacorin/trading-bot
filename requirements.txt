@@ -11,7 +11,10 @@ sqlalchemy==2.0.27
 alembic==1.13.1
 
 # Análise de dados
+investpy==1.0.8
 yfinance==0.2.36
+quandl==3.7.0
+alpha-vantage==2.3.1
 pandas==2.2.0
 numpy==1.26.3
 
