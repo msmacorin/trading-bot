@@ -112,25 +112,70 @@ def analyze_stock(stock_code: str) -> Dict:
         else:
             conditions.append(f"⬇️ Preço abaixo da média móvel ({ma_period} períodos)")
         
-        # Lógica de recomendações
+        # Lógica de recomendações (VERSÃO CORRIGIDA E CLARA)
         current_position = "HOLD"
         new_position = "WAIT"
         
-        # Para quem já tem a ação
-        if rsi > 70 or (macd < 0 and trend == "DOWN"):
+        # PRIMEIRO: Analisa sinais de VENDA para quem já tem a ação
+        if rsi > 85:
             current_position = "SELL"
-            conditions.append("🚨 Sinal de venda para posições existentes")
-        elif rsi < 30 and macd > 0:
+            conditions.append("🚨 Sinal de venda - sobrecompra extrema (RSI > 85)")
+        elif rsi > 80 and macd < -0.1:
+            current_position = "SELL"
+            conditions.append("🚨 Sinal de venda - sobrecompra com momentum negativo")
+        elif macd < -0.25 and trend == "DOWN":
+            current_position = "SELL"
+            conditions.append("🚨 Sinal de venda - momentum muito negativo")
+        elif rsi < 45 and macd > 0:
             current_position = "HOLD"
             conditions.append("💎 Manter posição - possível reversão")
         
-        # Para quem não tem a ação
-        if rsi < 30 and macd > 0 and trend == "UP":
+        # SEGUNDO: Analisa sinais de COMPRA para quem não tem a ação
+        # Resetar new_position para garantir lógica limpa
+        new_position = "WAIT"
+        
+        # BUY - Sinais FORTES de compra
+        buy_signal = False
+        if rsi < 35:
+            buy_signal = True
+            conditions.append("🎯 BUY: RSI muito baixo (< 35)")
+        elif rsi < 45 and macd > 0 and trend == "UP":
+            buy_signal = True  
+            conditions.append("🎯 BUY: RSI baixo + MACD positivo + tendência alta")
+        elif rsi < 50 and macd > 0.05 and trend == "UP":
+            buy_signal = True
+            conditions.append("🎯 BUY: Condições favoráveis múltiplas")
+        elif macd > 0.1 and trend == "UP":
+            buy_signal = True
+            conditions.append("🎯 BUY: MACD muito positivo + tendência alta")
+        
+        if buy_signal:
             new_position = "BUY"
-            conditions.append("🎯 Oportunidade de compra identificada")
-        elif rsi < 40 and trend == "UP":
+        
+        # WATCH - Sinais BONS de compra (só se não for BUY)
+        elif trend == "UP" and macd > 0.02:
             new_position = "WATCH"
-            conditions.append("👀 Ação em observação para possível compra")
+            conditions.append("👀 WATCH: Tendência positiva + MACD bom")
+        elif rsi < 60 and trend == "UP" and macd > -0.05:
+            new_position = "WATCH"
+            conditions.append("👀 WATCH: RSI moderado + tendência positiva")
+        elif rsi < 55 and trend == "UP":
+            new_position = "WATCH"
+            conditions.append("👀 WATCH: RSI bom + tendência positiva")
+        elif rsi < 70 and macd > 0.08:
+            new_position = "WATCH"
+            conditions.append("👀 WATCH: MACD forte")
+        
+        # CONSIDER - Sinais RAZOÁVEIS (só se não for BUY nem WATCH)
+        elif rsi < 70 and trend == "UP":
+            new_position = "CONSIDER"
+            conditions.append("🤔 CONSIDER: Tendência positiva")
+        elif rsi < 65 and macd > -0.02:
+            new_position = "CONSIDER"
+            conditions.append("🤔 CONSIDER: RSI moderado + MACD neutro")
+        elif rsi < 75 and macd > 0.03:
+            new_position = "CONSIDER"
+            conditions.append("🤔 CONSIDER: Sinais mistos positivos")
         
         # Adiciona informações sobre volume se disponível
         if 'Volume' in hist.columns:

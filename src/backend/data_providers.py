@@ -349,10 +349,16 @@ class BrApiProvider(DataProvider):
     """Provedor usando BrAPI (API brasileira)"""
     
     def __init__(self):
-        from .config import DataProviderConfig
+        try:
+            from .config import DataProviderConfig
+            self.api_key = DataProviderConfig.BRAPI_API_KEY
+        except ImportError:
+            # Fallback se não conseguir importar config
+            import os
+            self.api_key = os.environ.get('BRAPI_API_KEY')
+        
         self.available = True  # BrAPI funciona com e sem chave
         self.base_url = "https://brapi.dev/api"
-        self.api_key = DataProviderConfig.BRAPI_API_KEY
     
     def get_provider_name(self) -> str:
         return "BrAPI"
@@ -507,10 +513,16 @@ class HGFinanceProvider(DataProvider):
     """Provedor usando HG Finance (API brasileira)"""
     
     def __init__(self):
-        from .config import DataProviderConfig
+        try:
+            from .config import DataProviderConfig
+            self.api_key = DataProviderConfig.HG_FINANCE_API_KEY
+        except ImportError:
+            # Fallback se não conseguir importar config
+            import os
+            self.api_key = os.environ.get('HG_FINANCE_API_KEY')
+        
         self.available = True
         self.base_url = "https://api.hgbrasil.com/finance"
-        self.api_key = DataProviderConfig.HG_FINANCE_API_KEY
     
     def get_provider_name(self) -> str:
         return "HG Finance"
@@ -935,20 +947,175 @@ class MFinanceProvider(DataProvider):
             logger.error(f"Erro na MFinance para {symbol}: {str(e)}")
             return None
 
+class TiingoProvider(DataProvider):
+    """Provedor usando Tiingo API (API financeira premium)"""
+    
+    def __init__(self):
+        try:
+            from .config import DataProviderConfig
+            self.api_key = DataProviderConfig.TIINGO_API_KEY
+        except ImportError:
+            # Fallback se não conseguir importar config
+            import os
+            self.api_key = os.environ.get('TIINGO_API_KEY')
+        
+        self.available = True
+        self.base_url = "https://api.tiingo.com/tiingo/daily"
+    
+    def get_provider_name(self) -> str:
+        return "Tiingo"
+    
+    def get_historical_data(self, symbol: str, days: int = 30) -> Optional[pd.DataFrame]:
+        """Obtém dados da Tiingo API"""
+        if not self.available:
+            return None
+            
+        try:
+            import requests
+            
+            # Remove .SA se presente e converte para formato Tiingo
+            clean_symbol = symbol.replace('.SA', '')
+            
+            # Para ações brasileiras, Tiingo usa formato especial
+            tiingo_symbol = f"{clean_symbol}.SA"  # Mantém .SA para ações brasileiras
+            
+            logger.info(f"Tiingo: Buscando dados para {tiingo_symbol} {'(com chave)' if self.api_key else '(sem chave)'}")
+            
+            # Adiciona delay para evitar rate limiting
+            time.sleep(random.uniform(0.5, 1.5))
+            
+            # Calcula datas
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days + 10)
+            
+            # Endpoints para tentar
+            endpoints_to_try = []
+            
+            if self.api_key:
+                # Com chave de API
+                endpoints_to_try.extend([
+                    f"{self.base_url}/{tiingo_symbol}/prices",
+                    f"{self.base_url}/{clean_symbol}/prices",  # Sem .SA
+                ])
+            else:
+                # Sem chave (limitado)
+                endpoints_to_try.extend([
+                    f"{self.base_url}/{tiingo_symbol}/prices",
+                    f"{self.base_url}/{clean_symbol}/prices",
+                ])
+            
+            headers = {
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            if self.api_key:
+                headers['Authorization'] = f'Token {self.api_key}'
+            
+            for endpoint in endpoints_to_try:
+                try:
+                    logger.debug(f"Tiingo: Tentando endpoint {endpoint}")
+                    
+                    params = {
+                        'startDate': start_date.strftime('%Y-%m-%d'),
+                        'endDate': end_date.strftime('%Y-%m-%d'),
+                        'format': 'json'
+                    }
+                    
+                    response = requests.get(endpoint, headers=headers, params=params, timeout=10)
+                    
+                    logger.debug(f"Tiingo: Status {response.status_code} para {endpoint}")
+                    
+                    if response.status_code == 401:
+                        logger.warning(f"Tiingo: Unauthorized - verifique a chave de API")
+                        continue
+                    
+                    if response.status_code == 404:
+                        logger.debug(f"Tiingo: Símbolo {tiingo_symbol} não encontrado")
+                        continue
+                    
+                    if response.status_code != 200:
+                        logger.warning(f"Tiingo: Status {response.status_code} para {endpoint}")
+                        continue
+                    
+                    # Verifica se a resposta é JSON válido
+                    try:
+                        data_json = response.json()
+                    except ValueError as json_error:
+                        logger.warning(f"Tiingo: Resposta não é JSON válido: {str(json_error)}")
+                        continue
+                    
+                    if not data_json or not isinstance(data_json, list):
+                        logger.warning(f"Tiingo: Resposta vazia ou formato inválido")
+                        continue
+                    
+                    # Converte dados para DataFrame
+                    df_data = []
+                    for item in data_json:
+                        try:
+                            df_data.append({
+                                'Open': float(item.get('open', 0)),
+                                'High': float(item.get('high', 0)),
+                                'Low': float(item.get('low', 0)),
+                                'Close': float(item.get('close', 0)),
+                                'Volume': int(item.get('volume', 0)),
+                                'Date': pd.to_datetime(item.get('date', ''))
+                            })
+                        except (ValueError, TypeError, KeyError) as convert_error:
+                            logger.debug(f"Tiingo: Erro ao converter item: {convert_error}")
+                            continue
+                    
+                    if not df_data:
+                        logger.warning(f"Tiingo: Nenhum dado válido após conversão")
+                        continue
+                    
+                    data = pd.DataFrame(df_data)
+                    data.set_index('Date', inplace=True)
+                    data = data.sort_index()
+                    
+                    # Remove dados com valores zerados
+                    data = data[(data['Close'] > 0) & (data['Open'] > 0)]
+                    
+                    if data.empty:
+                        logger.warning(f"Tiingo: Dados vazios após filtros")
+                        continue
+                    
+                    # Pega apenas os últimos 'days' registros
+                    if len(data) > days:
+                        data = data.tail(days)
+                    
+                    logger.info(f"Tiingo: Obtidos {len(data)} registros para {tiingo_symbol} via {endpoint}")
+                    return data
+                    
+                except requests.exceptions.RequestException as req_error:
+                    logger.warning(f"Tiingo: Erro de requisição para {endpoint}: {str(req_error)}")
+                    continue
+                except Exception as endpoint_error:
+                    logger.warning(f"Tiingo: Erro no endpoint {endpoint}: {str(endpoint_error)}")
+                    continue
+            
+            logger.warning(f"Tiingo: Todos os endpoints falharam para {tiingo_symbol}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Erro na Tiingo para {symbol}: {str(e)}")
+            return None
+
 class DataProviderManager:
     """Gerenciador que coordena múltiplos provedores com fallback automático"""
     
     def __init__(self):
         """Inicializa o gerenciador com todos os provedores disponíveis"""
         self.providers = [
-            MFinanceProvider(),       # API brasileira MFinance (gratuita)
-            HGFinanceProvider(),      # API brasileira HG Finance
-            BrApiProvider(),          # API brasileira BrAPI
-            YahooFinanceProvider(),   # Yahoo Finance
-            InvestPyProvider(),       # InvestPy
-            AlphaVantageProvider(),   # Alpha Vantage
-            QuandlProvider(),         # Quandl
-            SmartSimulatedProvider()  # Provedor simulado inteligente
+            MFinanceProvider(),       # 1º - API brasileira MFinance (gratuita)
+            TiingoProvider(),         # 2º - API financeira premium Tiingo
+            HGFinanceProvider(),      # 3º - API brasileira HG Finance
+            BrApiProvider(),          # 4º - API brasileira BrAPI
+            YahooFinanceProvider(),   # 5º - Yahoo Finance
+            InvestPyProvider(),       # 6º - InvestPy
+            AlphaVantageProvider(),   # 7º - Alpha Vantage
+            QuandlProvider(),         # 8º - Quandl
+            SmartSimulatedProvider()  # Último - Provedor simulado inteligente
         ]
         
         # Estatísticas de uso

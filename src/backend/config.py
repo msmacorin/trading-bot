@@ -24,6 +24,10 @@ class DataProviderConfig:
     BRAPI_API_KEY: Optional[str] = os.environ.get('BRAPI_API_KEY')
     BRAPI_ENABLED: bool = True  # Funciona com e sem API key
     
+    # Tiingo
+    TIINGO_API_KEY: Optional[str] = os.environ.get('TIINGO_API_KEY')
+    TIINGO_ENABLED: bool = True  # Funciona com e sem API key
+    
     # Yahoo Finance
     YAHOO_ENABLED: bool = True  # Gratuito
     
@@ -43,12 +47,13 @@ class DataProviderConfig:
         """Retorna a ordem de prioridade dos provedores"""
         return [
             'MFinance',        # 1º - API brasileira gratuita e confiável
-            'HG Finance',      # 2º - API brasileira com chave
-            'BrAPI',           # 3º - API brasileira com chave
-            'Yahoo Finance',   # 4º - Confiável e gratuito
-            'InvestPy',        # 5º - Especializado em dados brasileiros
-            'Alpha Vantage',   # 6º - Boa qualidade mas requer API key
-            'Quandl',          # 7º - Datasets variados mas nem sempre atualizados
+            'Tiingo',          # 2º - API financeira de alta qualidade
+            'HG Finance',      # 3º - API brasileira com chave
+            'BrAPI',           # 4º - API brasileira com chave
+            'Yahoo Finance',   # 5º - Confiável e gratuito
+            'InvestPy',        # 6º - Especializado em dados brasileiros
+            'Alpha Vantage',   # 7º - Boa qualidade mas requer API key
+            'Quandl',          # 8º - Datasets variados mas nem sempre atualizados
         ]
     
     @classmethod
@@ -56,6 +61,7 @@ class DataProviderConfig:
         """Retorna status dos provedores habilitados"""
         return {
             'MFinance': cls.MFINANCE_ENABLED,
+            'Tiingo': cls.TIINGO_ENABLED,
             'HG Finance': cls.HG_FINANCE_ENABLED,
             'BrAPI': cls.BRAPI_ENABLED,
             'Yahoo Finance': cls.YAHOO_ENABLED,
@@ -68,6 +74,7 @@ class DataProviderConfig:
     def get_api_keys_status(cls) -> dict:
         """Retorna status das API keys"""
         return {
+            'Tiingo': 'Configurada' if cls.TIINGO_API_KEY else 'Não configurada (funciona com limitações)',
             'HG Finance': 'Configurada' if cls.HG_FINANCE_API_KEY else 'Não configurada (funciona com limitações)',
             'BrAPI': 'Configurada' if cls.BRAPI_API_KEY else 'Não configurada (funciona com limitações)',
             'Alpha Vantage': 'Configurada' if cls.ALPHA_VANTAGE_API_KEY else 'Não configurada',
@@ -76,6 +83,12 @@ class DataProviderConfig:
 
 # Instruções para configurar API keys
 API_SETUP_INSTRUCTIONS = {
+    'Tiingo': {
+        'url': 'https://api.tiingo.com/',
+        'free_tier': '500 requests per hour, 1000 requests per day',
+        'env_var': 'TIINGO_API_KEY',
+        'setup': 'export TIINGO_API_KEY=your_tiingo_api_key_here'
+    },
     'HG Finance': {
         'url': 'https://hgbrasil.com/status/finance',
         'free_tier': 'Limitado sem chave, mais requisições com chave',

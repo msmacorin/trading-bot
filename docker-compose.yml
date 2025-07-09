@@ -13,6 +13,8 @@ services:
     environment:
       - TZ=${TZ}
       - PYTHONPATH=${PYTHONPATH}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - EMAIL_FROM=${EMAIL_FROM}
     networks:
       - trading-net
     restart: unless-stopped
@@ -41,6 +43,7 @@ services:
       - BRAPI_API_KEY=${BRAPI_API_KEY}
       - ALPHA_VANTAGE_API_KEY=${ALPHA_VANTAGE_API_KEY}
       - QUANDL_API_KEY=${QUANDL_API_KEY}
+      - TIINGO_API_KEY=${TIINGO_API_KEY}
     networks:
       - trading-net
     restart: unless-stopped

@@ -17,6 +17,11 @@ O sistema utiliza múltiplos provedores de dados para garantir robustez. Configu
    ```bash
    # Chaves de API para provedores de dados financeiros
 
+   # Tiingo API Key (Premium - Recomendado)
+   # Obtenha em: https://api.tiingo.com/
+   # Plano gratuito: 500 req/hora, 1000 req/dia
+   TIINGO_API_KEY=sua_chave_tiingo_aqui
+
    # HG Finance API Key (Recomendado)
    # Obtenha em: https://hgbrasil.com/status/finance
    HG_FINANCE_API_KEY=sua_chave_hg_finance_aqui
@@ -39,13 +44,14 @@ O sistema utiliza múltiplos provedores de dados para garantir robustez. Configu
 O sistema utiliza os seguintes provedores em ordem de prioridade:
 
 1. **🥇 MFinance** - Gratuito, dados reais brasileiros
-2. **🥈 HG Finance** - Com chave de API, dados brasileiros
-3. **🥉 BrAPI** - Com chave de API, dados históricos completos
-4. **🏅 Yahoo Finance** - Gratuito (limitações no Docker)
-5. **🏅 InvestPy** - Gratuito (rate limiting)
-6. **🏅 Alpha Vantage** - Requer chave e plano premium
-7. **🏅 Quandl** - Requer chave para uso ilimitado
-8. **🏅 Smart Simulated** - Fallback inteligente
+2. **🥈 Tiingo** - API financeira premium, dados de alta qualidade
+3. **🥉 HG Finance** - Com chave de API, dados brasileiros
+4. **🏅 BrAPI** - Com chave de API, dados históricos completos
+5. **🏅 Yahoo Finance** - Gratuito (limitações no Docker)
+6. **🏅 InvestPy** - Gratuito (rate limiting)
+7. **🏅 Alpha Vantage** - Requer chave e plano premium
+8. **🏅 Quandl** - Requer chave para uso ilimitado
+9. **🏅 Smart Simulated** - Fallback inteligente
 
 ### Executar o Sistema
 

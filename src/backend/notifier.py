@@ -18,7 +18,7 @@ def send_email_notification(subject: str, body: str, to_email: str = None) -> bo
         # Configurações do Resend
         resend_api_key = os.getenv('RESEND_API_KEY')
         email_from = os.getenv('EMAIL_FROM')
-        email_to = os.getenv('EMAIL_TO', to_email)
+        email_to = to_email or os.getenv('EMAIL_TO')
         
         if not resend_api_key or not email_from or not email_to:
             logging.warning("Configurações de email não encontradas. Pulando notificação.")

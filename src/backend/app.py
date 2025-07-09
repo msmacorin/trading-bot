@@ -4,7 +4,6 @@ import logging
 from datetime import datetime
 from sqlalchemy.orm import Session
 from prometheus_client import start_http_server, Counter, Histogram, Gauge
-import yfinance as yf
 import pandas as pd
 import numpy as np
 from src.backend.analyzer import analyze_stock
@@ -346,9 +345,9 @@ def send_user_analysis_summary_email(usuario, buy_signals, sell_signals, all_ana
     """
     
     try:
-        send_email_notification(subject, body)
+        send_email_notification(subject, body, usuario.email)
         EMAIL_NOTIFICATIONS.labels(user_id=usuario.id).inc()
-        logging.info(f"📧 Relatório de análise enviado para {usuario.nome} - {len(buy_signals)} compras, {len(sell_signals)} vendas, {len(all_analyses)} análises")
+        logging.info(f"📧 Relatório de análise enviado para {usuario.nome} ({usuario.email}) - {len(buy_signals)} compras, {len(sell_signals)} vendas, {len(all_analyses)} análises")
     except Exception as e:
         logging.error(f"❌ Erro ao enviar relatório de análise para {usuario.nome}: {str(e)}")
 
