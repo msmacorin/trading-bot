@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Portfolio } from '../types';
+import { Portfolio, StockAnalysis } from '../types';
 import { apiService } from '../services/api';
+
+interface CacheData {
+  analysis: StockAnalysis & { data_source?: string };
+  user_ids: number[];
+  analyzed_at: string;
+}
+
+interface CacheStats {
+  cache_active: boolean;
+  cache_size: number;
+  last_update: string | null;
+  cache_age_seconds: number;
+  total_users_affected: number;
+  stocks_analysis?: { [key: string]: CacheData };
+}
 
 const CarteiraPage: React.FC = () => {
   const [portfolio, setPortfolio] = useState<Portfolio[]>([]);
@@ -15,6 +30,12 @@ const CarteiraPage: React.FC = () => {
   const [sellStock, setSellStock] = useState<Portfolio | null>(null);
   const [sellData, setSellData] = useState({ quantidade_vendida: '', preco_venda: '' });
   const [selling, setSelling] = useState(false);
+  
+  // Estados para análise
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [analysisStock, setAnalysisStock] = useState<Portfolio | null>(null);
+  const [analysisData, setAnalysisData] = useState<(StockAnalysis & { data_source?: string }) | null>(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
 
   useEffect(() => {
     loadPortfolio();
@@ -32,6 +53,42 @@ const CarteiraPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getStockAnalysis = async (codigo: string) => {
+    try {
+      setLoadingAnalysis(true);
+      
+      // Primeiro tenta buscar do cache
+      const cacheStats = await apiService.get<CacheStats>('/api/system/cache/stats');
+      
+      if (cacheStats.cache_active && cacheStats.stocks_analysis && cacheStats.stocks_analysis[codigo]) {
+        // Usa dados do cache
+        const cacheData = cacheStats.stocks_analysis[codigo];
+        setAnalysisData(cacheData.analysis);
+      } else {
+        // Se não há no cache, faz análise individual
+        const analysis = await apiService.getStockAnalysis(codigo);
+        setAnalysisData(analysis);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar análise:', error);
+      setError('Erro ao buscar análise da ação');
+    } finally {
+      setLoadingAnalysis(false);
+    }
+  };
+
+  const handleShowAnalysis = async (item: Portfolio) => {
+    setAnalysisStock(item);
+    setShowAnalysisModal(true);
+    await getStockAnalysis(item.codigo);
+  };
+
+  const closeAnalysisModal = () => {
+    setShowAnalysisModal(false);
+    setAnalysisStock(null);
+    setAnalysisData(null);
   };
 
   const validateStockCode = (code: string): string | null => {
@@ -193,6 +250,7 @@ const CarteiraPage: React.FC = () => {
                       <button className="btn btn-success" onClick={() => handleSell(item)}>Vender</button>
                       <button className="btn btn-warning" onClick={() => handleEdit(item)}>Editar</button>
                       <button className="btn btn-danger" onClick={() => handleDelete(item.codigo)}>Remover</button>
+                      <button className="btn btn-info" onClick={() => handleShowAnalysis(item)}>Analisar</button>
                     </div>
                   </td>
                 </tr>
@@ -339,6 +397,129 @@ const CarteiraPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para análise de ação */}
+      {showAnalysisModal && analysisStock && (
+        <div className="modal-overlay" onClick={closeAnalysisModal}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Análise de {analysisStock.codigo}</h2>
+              <button className="modal-close" onClick={closeAnalysisModal}>×</button>
+            </div>
+            {loadingAnalysis ? (
+              <div className="loading">Carregando análise...</div>
+                         ) : analysisData ? (
+               <div className="analysis-details">
+                 <div className="analysis-header">
+                   <h3>📊 Análise Técnica</h3>
+                   <div className="analysis-badges">
+                     <span className={`badge ${analysisData.current_position.toLowerCase()}`}>
+                       {analysisData.current_position}
+                     </span>
+                     <span className={`badge ${analysisData.new_position.toLowerCase()}`}>
+                       {analysisData.new_position}
+                     </span>
+                   </div>
+                 </div>
+
+                 <div className="analysis-grid">
+                   <div className="analysis-card">
+                     <div className="card-header">💰 Preços</div>
+                     <div className="card-content">
+                       <div className="metric">
+                         <span className="label">Preço Atual:</span>
+                         <span className="value">R$ {analysisData.price.toFixed(2)}</span>
+                       </div>
+                       <div className="metric">
+                         <span className="label">Stop Loss:</span>
+                         <span className="value">R$ {analysisData.stop_loss.toFixed(2)}</span>
+                       </div>
+                       <div className="metric">
+                         <span className="label">Take Profit:</span>
+                         <span className="value">R$ {analysisData.take_profit.toFixed(2)}</span>
+                       </div>
+                       <div className="metric">
+                         <span className="label">Variação:</span>
+                         <span className={`value ${analysisData.profit_pct >= 0 ? 'positive' : 'negative'}`}>
+                           {analysisData.profit_pct.toFixed(2)}%
+                         </span>
+                       </div>
+                     </div>
+                   </div>
+
+                   <div className="analysis-card">
+                     <div className="card-header">📈 Indicadores</div>
+                     <div className="card-content">
+                       <div className="metric">
+                         <span className="label">RSI:</span>
+                         <span className={`value ${analysisData.rsi < 30 ? 'buy-signal' : analysisData.rsi > 70 ? 'sell-signal' : 'neutral'}`}>
+                           {analysisData.rsi.toFixed(1)}
+                         </span>
+                       </div>
+                       <div className="metric">
+                         <span className="label">MACD:</span>
+                         <span className={`value ${analysisData.macd > 0 ? 'positive' : 'negative'}`}>
+                           {analysisData.macd.toFixed(3)}
+                         </span>
+                       </div>
+                       <div className="metric">
+                         <span className="label">Tendência:</span>
+                         <span className={`value ${analysisData.trend.toLowerCase()}`}>
+                           {analysisData.trend === 'UP' ? '⬆️ Alta' : '⬇️ Baixa'}
+                         </span>
+                       </div>
+                     </div>
+                   </div>
+
+                   <div className="analysis-card">
+                     <div className="card-header">🎯 Recomendações</div>
+                     <div className="card-content">
+                       <div className="recommendation">
+                         <strong>Para quem possui:</strong>
+                         <span className={`rec-value ${analysisData.current_position.toLowerCase()}`}>
+                           {analysisData.current_position === 'BUY' ? '🟢 Comprar Mais' : 
+                            analysisData.current_position === 'SELL' ? '🔴 Vender' : '⚪ Manter'}
+                         </span>
+                       </div>
+                       <div className="recommendation">
+                         <strong>Para quem não possui:</strong>
+                         <span className={`rec-value ${analysisData.new_position.toLowerCase()}`}>
+                           {analysisData.new_position === 'BUY' ? '🟢 Comprar' : 
+                            analysisData.new_position === 'WAIT' ? '⏳ Aguardar' : '❌ Evitar'}
+                         </span>
+                       </div>
+                     </div>
+                   </div>
+                 </div>
+
+                 {analysisData.conditions && analysisData.conditions.length > 0 && (
+                   <div className="analysis-conditions">
+                     <h4>🔍 Condições Identificadas</h4>
+                     <div className="conditions-list">
+                       {analysisData.conditions.map((condition, index) => (
+                         <div key={index} className="condition-item">
+                           {condition}
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                 )}
+
+                 {analysisData.data_source && (
+                   <div className="analysis-footer">
+                     <small>📡 Fonte dos dados: {analysisData.data_source}</small>
+                   </div>
+                 )}
+               </div>
+            ) : (
+              <div className="empty-state">
+                <h3>Nenhuma análise disponível para {analysisStock.codigo}</h3>
+                <p>Faça uma análise manual para obter detalhes.</p>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -499,14 +499,72 @@ async def usuario_atual(usuario = Depends(obter_usuario_atual)):
 # Endpoint de análise
 @app.get("/api/acoes/{codigo}/analise")
 async def analisar_acao(codigo: str):
-    """Realiza análise técnica de uma ação específica usando múltiplos provedores"""
+    """Realiza análise técnica de uma ação específica usando múltiplos provedores, com lock e cache on-demand"""
     try:
-        from src.backend.analyzer import analyze_stock
-        analysis = analyze_stock(codigo)
+        from src.backend.app import analyze_stock_on_demand
+        analysis = analyze_stock_on_demand(codigo)
         analysis['codigo'] = codigo
         return analysis
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# Endpoints do sistema de cache otimizado
+@app.get("/api/system/cache/stats")
+async def get_cache_statistics():
+    """Retorna estatísticas do cache compartilhado de análises"""
+    try:
+        from src.backend.app import get_cache_stats
+        return get_cache_stats()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao obter estatísticas: {str(e)}")
+
+@app.post("/api/system/cache/force-analysis")
+async def force_cache_analysis(usuario = Depends(obter_usuario_atual)):
+    """Força uma nova análise e atualização do cache (apenas para usuários autenticados)"""
+    try:
+        from src.backend.app import analyze_all_stocks
+        import asyncio
+        
+        # Executa a análise em background
+        loop = asyncio.get_event_loop()
+        task = loop.run_in_executor(None, analyze_all_stocks)
+        
+        return {
+            "message": "Análise forçada iniciada em background",
+            "status": "running",
+            "usuario": usuario.nome
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao forçar análise: {str(e)}")
+
+@app.get("/api/system/cache/status")
+async def get_cache_status():
+    """Retorna status básico do cache"""
+    try:
+        from src.backend.app import analysis_cache, cache_timestamp
+        from datetime import datetime
+        
+        if not analysis_cache:
+            return {
+                "cache_active": False,
+                "cache_size": 0,
+                "last_update": None,
+                "message": "Cache vazio - nenhuma análise executada ainda"
+            }
+        
+        cache_age = (datetime.now() - cache_timestamp).total_seconds() if cache_timestamp else 0
+        total_users = sum(len(data['user_ids']) for data in analysis_cache.values())
+        
+        return {
+            "cache_active": True,
+            "cache_size": len(analysis_cache),
+            "last_update": cache_timestamp,
+            "cache_age_seconds": cache_age,
+            "total_users_affected": total_users,
+            "message": f"Cache ativo com {len(analysis_cache)} ações analisadas"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao verificar status: {str(e)}")
 
 # Endpoint para testar provedores de dados
 @app.get("/api/system/data-providers/test")

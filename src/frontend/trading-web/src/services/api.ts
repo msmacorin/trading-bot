@@ -141,6 +141,18 @@ class ApiService {
   async getTransactions(): Promise<any> {
     return this.request<any>('/api/transacoes');
   }
+
+  // Generic methods for cache endpoints
+  async get<T>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint);
+  }
+
+  async post<T>(endpoint: string, data: any = {}): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 export const apiService = new ApiService(); 

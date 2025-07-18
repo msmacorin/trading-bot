@@ -54,7 +54,8 @@ const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="login-container">
+    <div className="login-page-container">
+      <div className="login-container">
       <div className="login-card">
         <div className="login-header">
           <h1>🤖 Trading Bot</h1>
@@ -164,6 +165,7 @@ const RegisterPage: React.FC = () => {
           </p>
         </div>
       </div>
+    </div>
     </div>
   );
 };
