@@ -25,6 +25,7 @@ class Usuario(Base):
     # Relacionamentos
     acoes = relationship("Acao", back_populates="usuario")
     carteira = relationship("Carteira", back_populates="usuario")
+    transacoes = relationship("Transacao", back_populates="usuario")
     
     def set_senha(self, senha):
         """Hash da senha usando bcrypt"""
@@ -69,6 +70,29 @@ class Carteira(Base):
     
     def __repr__(self):
         return f"<Carteira(id={self.id}, codigo={self.codigo}, quantidade={self.quantidade}, usuario_id={self.usuario_id})>"
+
+class Transacao(Base):
+    """Modelo para a tabela de transações (vendas executadas)"""
+    __tablename__ = "transacoes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    codigo = Column(String, index=True, nullable=False)
+    data_transacao = Column(DateTime, default=datetime.utcnow, nullable=False)
+    quantidade_vendida = Column(Integer, nullable=False)
+    preco_compra = Column(Float, nullable=False)  # Preço médio de compra original
+    preco_venda = Column(Float, nullable=False)   # Preço de venda
+    stop_loss_original = Column(Float, default=0.0)
+    take_profit_original = Column(Float, default=0.0)
+    valor_total = Column(Float, nullable=False)   # quantidade_vendida * preco_venda
+    lucro_prejuizo = Column(Float, nullable=False)  # (preco_venda - preco_compra) * quantidade_vendida
+    percentual_resultado = Column(Float, nullable=False)  # ((preco_venda - preco_compra) / preco_compra) * 100
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    
+    # Relacionamento
+    usuario = relationship("Usuario", back_populates="transacoes")
+    
+    def __repr__(self):
+        return f"<Transacao(id={self.id}, codigo={self.codigo}, quantidade={self.quantidade_vendida}, resultado={self.lucro_prejuizo:.2f})>"
 
 def init_db():
     """Inicializa o banco de dados criando todas as tabelas"""
@@ -131,6 +155,71 @@ def get_posicao_by_codigo(codigo: str, usuario_id: int):
         ).first()
     except ValueError:
         return None
+    finally:
+        db.close()
+
+def get_transacoes(usuario_id: int):
+    """Retorna todas as transações de um usuário"""
+    db = SessionLocal()
+    try:
+        return db.query(Transacao).filter(
+            Transacao.usuario_id == usuario_id
+        ).order_by(Transacao.data_transacao.desc()).all()
+    finally:
+        db.close()
+
+def get_transacoes_by_codigo(codigo: str, usuario_id: int):
+    """Retorna transações de uma ação específica"""
+    from src.backend.utils import normalize_stock_code
+    
+    db = SessionLocal()
+    try:
+        normalized_code = normalize_stock_code(codigo)
+        return db.query(Transacao).filter(
+            Transacao.codigo == normalized_code,
+            Transacao.usuario_id == usuario_id
+        ).order_by(Transacao.data_transacao.desc()).all()
+    except ValueError:
+        return []
+    finally:
+        db.close()
+
+def criar_transacao(codigo: str, quantidade_vendida: int, preco_compra: float, 
+                   preco_venda: float, stop_loss_original: float, 
+                   take_profit_original: float, usuario_id: int):
+    """Cria uma nova transação de venda"""
+    from src.backend.utils import normalize_stock_code
+    
+    db = SessionLocal()
+    try:
+        normalized_code = normalize_stock_code(codigo)
+        
+        # Calcula valores
+        valor_total = quantidade_vendida * preco_venda
+        lucro_prejuizo = (preco_venda - preco_compra) * quantidade_vendida
+        percentual_resultado = ((preco_venda - preco_compra) / preco_compra) * 100
+        
+        transacao = Transacao(
+            codigo=normalized_code,
+            quantidade_vendida=quantidade_vendida,
+            preco_compra=preco_compra,
+            preco_venda=preco_venda,
+            stop_loss_original=stop_loss_original,
+            take_profit_original=take_profit_original,
+            valor_total=valor_total,
+            lucro_prejuizo=lucro_prejuizo,
+            percentual_resultado=percentual_resultado,
+            usuario_id=usuario_id
+        )
+        
+        db.add(transacao)
+        db.commit()
+        db.refresh(transacao)
+        return transacao
+        
+    except Exception as e:
+        db.rollback()
+        raise e
     finally:
         db.close()
 

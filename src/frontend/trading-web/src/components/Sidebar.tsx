@@ -39,6 +39,11 @@ const Sidebar: React.FC = () => {
             </NavLink>
           </li>
           <li>
+            <NavLink to="/transacoes" className={({ isActive }) => isActive ? 'active' : ''}>
+              💰 Ordens Executadas
+            </NavLink>
+          </li>
+          <li>
             <NavLink to="/analise-individual" className={({ isActive }) => isActive ? 'active' : ''}>
               🔍 Análise Individual
             </NavLink>

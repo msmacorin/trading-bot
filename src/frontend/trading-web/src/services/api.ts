@@ -38,8 +38,21 @@ class ApiService {
       ...options,
     });
 
+    // Verifica se o token expirou ou é inválido
+    if (response.status === 401) {
+      console.warn('🔐 Token inválido ou expirado, removendo do localStorage...');
+      localStorage.removeItem('trading_token');
+      localStorage.removeItem('trading_user');
+      
+      // Redireciona para login
+      window.location.href = '/login';
+      
+      throw new Error('Token inválido ou expirado');
+    }
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorData = await response.json().catch(() => ({ detail: 'Erro desconhecido' }));
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
     }
 
     return response.json();
@@ -110,6 +123,23 @@ class ApiService {
   // Analysis endpoint
   async getStockAnalysis(codigo: string): Promise<StockAnalysis> {
     return this.request<StockAnalysis>(`/api/acoes/${codigo}/analise`);
+  }
+
+  // Sell stock endpoint
+  async sellStock(codigo: string, sellData: { quantidade_vendida: number; preco_venda: number }): Promise<any> {
+    return this.request<any>(`/api/carteira/${codigo}/vender`, {
+      method: 'POST',
+      body: JSON.stringify({
+        codigo,
+        quantidade_vendida: sellData.quantidade_vendida,
+        preco_venda: sellData.preco_venda
+      }),
+    });
+  }
+
+  // Transactions endpoint
+  async getTransactions(): Promise<any> {
+    return this.request<any>('/api/transacoes');
   }
 }
 

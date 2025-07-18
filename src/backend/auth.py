@@ -8,7 +8,7 @@ from src.backend.database import autenticar_usuario, get_usuario_por_id
 # Configurações de segurança
 SECRET_KEY = "sua_chave_secreta_muito_segura_aqui_2024"  # Em produção, use variável de ambiente
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 30 * 24 * 60  # 30 dias em minutos (43200 minutos)
 
 security = HTTPBearer()
 

@@ -11,6 +11,10 @@ const CarteiraPage: React.FC = () => {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<null | Portfolio>(null);
   const [updating, setUpdating] = useState(false);
+  const [showSellModal, setShowSellModal] = useState(false);
+  const [sellStock, setSellStock] = useState<Portfolio | null>(null);
+  const [sellData, setSellData] = useState({ quantidade_vendida: '', preco_venda: '' });
+  const [selling, setSelling] = useState(false);
 
   useEffect(() => {
     loadPortfolio();
@@ -116,6 +120,35 @@ const CarteiraPage: React.FC = () => {
     }
   };
 
+  const handleSell = (stock: Portfolio) => {
+    setSellStock(stock);
+    setSellData({ quantidade_vendida: '', preco_venda: '' });
+    setShowSellModal(true);
+  };
+
+  const handleSellSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sellStock || !sellData.quantidade_vendida || !sellData.preco_venda) return;
+
+    try {
+      setSelling(true);
+      await apiService.sellStock(sellStock.codigo, {
+        quantidade_vendida: Number(sellData.quantidade_vendida),
+        preco_venda: Number(sellData.preco_venda)
+      });
+      setShowSellModal(false);
+      setSellStock(null);
+      setSellData({ quantidade_vendida: '', preco_venda: '' });
+      await loadPortfolio();
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.detail || 'Erro ao executar venda';
+      setError(errorMessage);
+      console.error('Erro ao vender ação:', err);
+    } finally {
+      setSelling(false);
+    }
+  };
+
   if (loading) {
     return <div className="main-content"><div className="loading">Carregando carteira...</div></div>;
   }
@@ -157,6 +190,7 @@ const CarteiraPage: React.FC = () => {
                   <td>{item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : '-'}</td>
                   <td>
                     <div className="action-buttons">
+                      <button className="btn btn-success" onClick={() => handleSell(item)}>Vender</button>
                       <button className="btn btn-warning" onClick={() => handleEdit(item)}>Editar</button>
                       <button className="btn btn-danger" onClick={() => handleDelete(item.codigo)}>Remover</button>
                     </div>
@@ -232,6 +266,77 @@ const CarteiraPage: React.FC = () => {
               <div className="form-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setEditing(null)}>Cancelar</button>
                 <button type="submit" className="btn btn-primary" disabled={updating}>{updating ? 'Salvando...' : 'Salvar'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para vender ação */}
+      {showSellModal && sellStock && (
+        <div className="modal-overlay" onClick={() => setShowSellModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Vender {sellStock.codigo}</h2>
+              <button className="modal-close" onClick={() => setShowSellModal(false)}>×</button>
+            </div>
+            <form onSubmit={handleSellSubmit}>
+              <div className="form-group">
+                <label className="form-label">Quantidade Disponível</label>
+                <input type="text" className="form-input" value={sellStock.quantidade} disabled />
+              </div>
+              
+              <div className="form-group">
+                <label className="form-label">Quantidade a Vender</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={sellData.quantidade_vendida}
+                  onChange={(e) => setSellData({...sellData, quantidade_vendida: e.target.value})}
+                  placeholder="Digite a quantidade"
+                  min="1"
+                  max={sellStock.quantidade}
+                  required
+                />
+              </div>
+              
+              <div className="form-group">
+                <label className="form-label">Preço de Venda (R$)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="form-input"
+                  value={sellData.preco_venda}
+                  onChange={(e) => setSellData({...sellData, preco_venda: e.target.value})}
+                  placeholder="Digite o preço de venda"
+                  min="0.01"
+                  required
+                />
+              </div>
+              
+              <div className="form-group">
+                <div className="sell-info">
+                  <p><strong>Preço Médio de Compra:</strong> R$ {sellStock.preco_medio.toFixed(2)}</p>
+                  <p><strong>Stop Loss Original:</strong> R$ {sellStock.stop_loss.toFixed(2)}</p>
+                  <p><strong>Take Profit Original:</strong> R$ {sellStock.take_profit.toFixed(2)}</p>
+                </div>
+              </div>
+              
+              <div className="form-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowSellModal(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-success"
+                  disabled={selling}
+                >
+                  {selling ? 'Vendendo...' : 'Confirmar Venda'}
+                </button>
               </div>
             </form>
           </div>

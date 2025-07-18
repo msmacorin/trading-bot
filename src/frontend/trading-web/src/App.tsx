@@ -1,11 +1,14 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { useTokenValidation } from './hooks/useTokenValidation';
 import Sidebar from './components/Sidebar';
+import TokenExpirationAlert from './components/TokenExpirationAlert';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AnalisePage from './pages/AnalisePage';
 import CarteiraPage from './pages/CarteiraPage';
+import TransacoesPage from './pages/TransacoesPage';
 import AnaliseIndividualPage from './pages/AnaliseIndividualPage';
 import './styles/global.css';
 
@@ -38,10 +41,14 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 // Componente principal da aplicação
 const AppContent: React.FC = () => {
   const { user } = useAuth();
+  
+  // Hook para verificar validade do token periodicamente
+  useTokenValidation();
 
   return (
     <div className="app">
       {user && <Sidebar />}
+      <TokenExpirationAlert daysBeforeExpiration={7} />
       <Routes>
         {/* Rotas públicas */}
         <Route path="/login" element={<LoginPage />} />
@@ -61,6 +68,11 @@ const AppContent: React.FC = () => {
         <Route path="/carteira" element={
           <ProtectedRoute>
             <CarteiraPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/transacoes" element={
+          <ProtectedRoute>
+            <TransacoesPage />
           </ProtectedRoute>
         } />
         <Route path="/analise-individual" element={

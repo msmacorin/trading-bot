@@ -12,7 +12,9 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 try:
-    from src.backend.database import criar_usuario, get_acoes_ativas, get_carteira, SessionLocal, Acao, Carteira
+    from src.backend.database import (criar_usuario, get_acoes_ativas, get_carteira, SessionLocal, 
+                                     Acao, Carteira, Transacao, get_transacoes, criar_transacao, 
+                                     get_posicao_by_codigo)
     print("✅ Successfully imported src.backend.database")
 except ImportError as e:
     print("❌ Error importing src.backend.database:", str(e))
@@ -121,6 +123,35 @@ class CarteiraResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+class VendaRequest(BaseModel):
+    codigo: str
+    quantidade_vendida: int
+    preco_venda: float
+
+class TransacaoResponse(BaseModel):
+    id: int
+    codigo: str
+    data_transacao: str
+    quantidade_vendida: int
+    preco_compra: float
+    preco_venda: float
+    stop_loss_original: float
+    take_profit_original: float
+    valor_total: float
+    lucro_prejuizo: float
+    percentual_resultado: float
+    usuario_id: int
+    
+    class Config:
+        from_attributes = True
+
+class ResumoTransacoesResponse(BaseModel):
+    total_transacoes: int
+    valor_total_vendido: float
+    lucro_prejuizo_total: float
+    percentual_medio: float
+    transacoes: List[TransacaoResponse]
 
 # Rotas de autenticação
 @app.post("/auth/login", response_model=LoginResponse)
@@ -330,6 +361,135 @@ async def atualizar_posicao(
         
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# Rotas de vendas e transações
+@app.post("/api/carteira/{codigo}/vender")
+async def vender_acao(codigo: str, venda: VendaRequest, usuario = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
+    """Executa venda de ação da carteira"""
+    from src.backend.utils import normalize_stock_code
+    
+    try:
+        # Normaliza o código
+        normalized_code = normalize_stock_code(codigo)
+        
+        # Busca a posição na carteira
+        posicao = db.query(Carteira).filter(
+            Carteira.codigo == normalized_code, 
+            Carteira.usuario_id == usuario.id
+        ).first()
+        
+        if not posicao:
+            raise HTTPException(status_code=404, detail="Posição não encontrada na carteira")
+        
+        # Valida quantidade
+        if venda.quantidade_vendida <= 0:
+            raise HTTPException(status_code=400, detail="Quantidade deve ser maior que zero")
+        
+        if venda.quantidade_vendida > posicao.quantidade:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Quantidade vendida ({venda.quantidade_vendida}) maior que disponível ({posicao.quantidade})"
+            )
+        
+        # Valida preço
+        if venda.preco_venda <= 0:
+            raise HTTPException(status_code=400, detail="Preço de venda deve ser maior que zero")
+        
+        # Cria a transação
+        transacao = criar_transacao(
+            codigo=normalized_code,
+            quantidade_vendida=venda.quantidade_vendida,
+            preco_compra=posicao.preco_medio,
+            preco_venda=venda.preco_venda,
+            stop_loss_original=posicao.stop_loss,
+            take_profit_original=posicao.take_profit,
+            usuario_id=usuario.id
+        )
+        
+        # Atualiza ou remove a posição
+        if venda.quantidade_vendida == posicao.quantidade:
+            # Venda total - remove da carteira
+            db.delete(posicao)
+        else:
+            # Venda parcial - reduz quantidade
+            posicao.quantidade -= venda.quantidade_vendida
+        
+        db.commit()
+        
+        # Prepara resposta
+        transacao_response = TransacaoResponse(
+            id=transacao.id,
+            codigo=transacao.codigo,
+            data_transacao=transacao.data_transacao.isoformat(),
+            quantidade_vendida=transacao.quantidade_vendida,
+            preco_compra=transacao.preco_compra,
+            preco_venda=transacao.preco_venda,
+            stop_loss_original=transacao.stop_loss_original,
+            take_profit_original=transacao.take_profit_original,
+            valor_total=transacao.valor_total,
+            lucro_prejuizo=transacao.lucro_prejuizo,
+            percentual_resultado=transacao.percentual_resultado,
+            usuario_id=transacao.usuario_id
+        )
+        
+        return {
+            "message": f"Venda executada com sucesso",
+            "transacao": transacao_response,
+            "posicao_removida": venda.quantidade_vendida == posicao.quantidade
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+
+@app.get("/api/transacoes", response_model=ResumoTransacoesResponse)
+async def listar_transacoes(usuario = Depends(obter_usuario_atual)):
+    """Lista todas as transações do usuário com resumo"""
+    try:
+        transacoes = get_transacoes(usuario.id)
+        
+        # Calcula resumo
+        if transacoes:
+            total_transacoes = len(transacoes)
+            valor_total_vendido = sum(t.valor_total for t in transacoes)
+            lucro_prejuizo_total = sum(t.lucro_prejuizo for t in transacoes)
+            percentual_medio = sum(t.percentual_resultado for t in transacoes) / total_transacoes
+        else:
+            total_transacoes = 0
+            valor_total_vendido = 0.0
+            lucro_prejuizo_total = 0.0
+            percentual_medio = 0.0
+        
+        # Converte transações para response
+        transacoes_response = [
+            TransacaoResponse(
+                id=t.id,
+                codigo=t.codigo,
+                data_transacao=t.data_transacao.isoformat(),
+                quantidade_vendida=t.quantidade_vendida,
+                preco_compra=t.preco_compra,
+                preco_venda=t.preco_venda,
+                stop_loss_original=t.stop_loss_original,
+                take_profit_original=t.take_profit_original,
+                valor_total=t.valor_total,
+                lucro_prejuizo=t.lucro_prejuizo,
+                percentual_resultado=t.percentual_resultado,
+                usuario_id=t.usuario_id
+            ) for t in transacoes
+        ]
+        
+        return ResumoTransacoesResponse(
+            total_transacoes=total_transacoes,
+            valor_total_vendido=valor_total_vendido,
+            lucro_prejuizo_total=lucro_prejuizo_total,
+            percentual_medio=percentual_medio,
+            transacoes=transacoes_response
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/usuario/atual")
 async def usuario_atual(usuario = Depends(obter_usuario_atual)):

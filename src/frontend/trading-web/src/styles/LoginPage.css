@@ -5,16 +5,134 @@
   justify-content: center;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 20px;
+  box-sizing: border-box;
+}
+
+.login-wrapper {
+  display: flex;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  width: 100%;
+  max-width: 1200px;
+  min-height: 600px;
+  animation: slideUp 0.6s ease-out;
+  box-sizing: border-box;
+}
+
+/* Seção informativa à esquerda */
+.login-info-section {
+  width: 60%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 60px 40px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.info-content {
+  width: 100%;
+}
+
+.info-content h2 {
+  font-size: 3rem;
+  margin-bottom: 10px;
+  font-weight: 700;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.info-content h3 {
+  font-size: 1.5rem;
+  margin-bottom: 40px;
+  font-weight: 400;
+  opacity: 0.9;
+  line-height: 1.4;
+}
+
+.features-list {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+  margin-bottom: 40px;
+}
+
+.feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  transition: transform 0.3s ease, background 0.3s ease;
+}
+
+.feature-item:hover {
+  transform: translateX(10px);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.feature-icon {
+  font-size: 1.8rem;
+  min-width: 40px;
+  text-align: center;
+}
+
+.feature-text {
+  flex: 1;
+}
+
+.feature-text strong {
+  display: block;
+  font-size: 1.1rem;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+.feature-text p {
+  margin: 0;
+  font-size: 0.95rem;
+  opacity: 0.9;
+  line-height: 1.4;
+}
+
+.info-footer {
+  text-align: center;
+  padding-top: 30px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.info-footer p {
+  margin: 8px 0;
+  font-size: 1.1rem;
+}
+
+.info-footer p:first-child {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+/* Seção do formulário à direita */
+.login-form-section {
+  width: 40%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  background: white;
+  box-sizing: border-box;
 }
 
 .login-card {
-  background: white;
-  border-radius: 20px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-  padding: 40px;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
   width: 100%;
-  max-width: 400px;
-  animation: slideUp 0.5s ease-out;
+  max-width: 350px;
+  animation: none;
 }
 
 @keyframes slideUp {
@@ -35,14 +153,14 @@
 
 .login-header h1 {
   color: #333;
-  font-size: 2.5rem;
+  font-size: 2.2rem;
   margin-bottom: 10px;
   font-weight: 700;
 }
 
 .login-header p {
   color: #666;
-  font-size: 1.1rem;
+  font-size: 1rem;
   margin: 0;
 }
 
@@ -204,21 +322,116 @@
 }
 
 /* Responsividade */
-@media (max-width: 480px) {
+@media (max-width: 1024px) {
+  .login-wrapper {
+    flex-direction: column;
+    max-width: 600px;
+    min-height: auto;
+  }
+  
+  .login-info-section {
+    width: 100%;
+    padding: 40px 30px;
+  }
+  
+  .info-content h2 {
+    font-size: 2.5rem;
+  }
+  
+  .info-content h3 {
+    font-size: 1.3rem;
+  }
+  
+  .features-list {
+    gap: 20px;
+  }
+  
+  .feature-item {
+    padding: 12px;
+  }
+  
+  .login-form-section {
+    width: 100%;
+    padding: 30px;
+  }
+}
+
+@media (max-width: 768px) {
   .login-container {
     padding: 10px;
   }
   
-  .login-card {
+  .login-wrapper {
+    min-height: auto;
+  }
+  
+  .login-info-section {
     padding: 30px 20px;
   }
   
+  .info-content h2 {
+    font-size: 2.2rem;
+  }
+  
+  .info-content h3 {
+    font-size: 1.2rem;
+    margin-bottom: 30px;
+  }
+  
+  .features-list {
+    gap: 15px;
+  }
+  
+  .feature-item {
+    flex-direction: column;
+    text-align: center;
+    gap: 10px;
+  }
+  
+  .feature-icon {
+    font-size: 2.5rem;
+  }
+  
+  .login-form-section {
+    padding: 20px;
+  }
+  
   .login-header h1 {
-    font-size: 2rem;
+    font-size: 1.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-info-section {
+    padding: 20px 15px;
+  }
+  
+  .info-content h2 {
+    font-size: 1.8rem;
+  }
+  
+  .info-content h3 {
+    font-size: 1.1rem;
+  }
+  
+  .feature-text strong {
+    font-size: 1rem;
+  }
+  
+  .feature-text p {
+    font-size: 0.9rem;
+  }
+  
+  .login-form-section {
+    padding: 15px;
+  }
+  
+  .login-header h1 {
+    font-size: 1.6rem;
   }
   
   .login-header p {
-    font-size: 1rem;
+    font-size: 0.9rem;
   }
 }
 
