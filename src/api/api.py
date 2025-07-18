@@ -141,27 +141,54 @@ def listar_acoes_ativas(usuario_atual = Depends(obter_usuario_atual), db: Sessio
 @app.post("/acoes/", response_model=AcaoResponse, tags=["Ações"])
 def adicionar_acao(acao: AcaoCreate, usuario_atual = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
     """Adiciona uma nova ação para monitoramento do usuário logado"""
-    # Verifica se a ação já existe para este usuário
-    db_acao = db.query(Acao).filter(Acao.codigo == acao.codigo, Acao.usuario_id == usuario_atual.id).first()
-    if db_acao:
-        raise HTTPException(status_code=400, detail="Ação já cadastrada para este usuário")
+    # Importa e usa normalização
+    from src.backend.utils import normalize_stock_code, validate_stock_code
     
-    db_acao = Acao(**acao.model_dump(), usuario_id=usuario_atual.id)
-    db.add(db_acao)
-    db.commit()
-    db.refresh(db_acao)
-    return db_acao
+    try:
+        # Normaliza e valida o código da ação
+        normalized_code = normalize_stock_code(acao.codigo)
+        stock_info = validate_stock_code(acao.codigo)
+        
+        # Verifica se a ação já existe para este usuário (usando código normalizado)
+        db_acao = db.query(Acao).filter(Acao.codigo == normalized_code, Acao.usuario_id == usuario_atual.id).first()
+        if db_acao:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Ação {stock_info['display_name']} já cadastrada para este usuário"
+            )
+        
+        # Cria nova ação com código normalizado
+        acao_data = acao.model_dump()
+        acao_data['codigo'] = normalized_code
+        db_acao = Acao(**acao_data, usuario_id=usuario_atual.id)
+        db.add(db_acao)
+        db.commit()
+        db.refresh(db_acao)
+        return db_acao
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.delete("/acoes/{codigo}", tags=["Ações"])
 def remover_acao(codigo: str, usuario_atual = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
     """Remove uma ação do monitoramento do usuário logado"""
-    db_acao = db.query(Acao).filter(Acao.codigo == codigo, Acao.usuario_id == usuario_atual.id).first()
-    if not db_acao:
-        raise HTTPException(status_code=404, detail="Ação não encontrada")
+    # Importa e usa normalização
+    from src.backend.utils import normalize_stock_code
     
-    db.delete(db_acao)
-    db.commit()
-    return {"message": f"Ação {codigo} removida com sucesso"}
+    try:
+        # Normaliza o código para busca
+        normalized_code = normalize_stock_code(codigo)
+        
+        db_acao = db.query(Acao).filter(Acao.codigo == normalized_code, Acao.usuario_id == usuario_atual.id).first()
+        if not db_acao:
+            raise HTTPException(status_code=404, detail="Ação não encontrada")
+        
+        db.delete(db_acao)
+        db.commit()
+        return {"message": f"Ação {normalized_code} removida com sucesso"}
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.patch("/acoes/{codigo}/ativar", response_model=AcaoResponse, tags=["Ações"])
 def ativar_acao(codigo: str, usuario_atual = Depends(obter_usuario_atual), db: Session = Depends(get_db)):

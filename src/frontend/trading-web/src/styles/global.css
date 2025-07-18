@@ -518,6 +518,15 @@ body {
   color: #7f8c8d;
 }
 
+/* Texto de ajuda em formulários */
+.form-help {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+  line-height: 1.25rem;
+}
+
 /* Responsividade */
 @media (max-width: 768px) {
   .results-header {

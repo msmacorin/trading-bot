@@ -94,11 +94,43 @@ def get_acoes_ativas(usuario_id):
     finally:
         db.close()
 
+def get_acao_by_codigo(codigo: str, usuario_id: int):
+    """Busca uma ação por código normalizado"""
+    from src.backend.utils import normalize_stock_code
+    
+    db = SessionLocal()
+    try:
+        normalized_code = normalize_stock_code(codigo)
+        return db.query(Acao).filter(
+            Acao.codigo == normalized_code, 
+            Acao.usuario_id == usuario_id
+        ).first()
+    except ValueError:
+        return None
+    finally:
+        db.close()
+
 def get_carteira(usuario_id):
     """Retorna todas as posições da carteira de um usuário"""
     db = SessionLocal()
     try:
         return db.query(Carteira).filter(Carteira.usuario_id == usuario_id).all()
+    finally:
+        db.close()
+
+def get_posicao_by_codigo(codigo: str, usuario_id: int):
+    """Busca uma posição na carteira por código normalizado"""
+    from src.backend.utils import normalize_stock_code
+    
+    db = SessionLocal()
+    try:
+        normalized_code = normalize_stock_code(codigo)
+        return db.query(Carteira).filter(
+            Carteira.codigo == normalized_code, 
+            Carteira.usuario_id == usuario_id
+        ).first()
+    except ValueError:
+        return None
     finally:
         db.close()
 

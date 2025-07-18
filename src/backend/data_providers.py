@@ -59,8 +59,11 @@ class YahooFinanceProvider(DataProvider):
             return None
             
         try:
-            # Converte símbolo para formato Yahoo (adiciona .SA se necessário)
-            yahoo_symbol = symbol if symbol.endswith('.SA') else f"{symbol}.SA"
+            # Importa normalização
+            from src.backend.utils import format_stock_code_for_provider
+            
+            # Formata símbolo para Yahoo Finance
+            yahoo_symbol = format_stock_code_for_provider(symbol, 'yahoo')
             
             logger.info(f"Yahoo Finance: Buscando dados para {yahoo_symbol}")
             

@@ -1,7 +1,7 @@
 import schedule
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, time as dt_time
 from sqlalchemy.orm import Session
 from prometheus_client import start_http_server, Counter, Histogram, Gauge
 import pandas as pd
@@ -29,6 +29,24 @@ PRICE_GAUGE = Gauge('stock_price', 'Preço atual da ação', ['stock', 'user_id'
 TREND_GAUGE = Gauge('stock_trend', 'Tendência da ação (1=UP, 0=DOWN)', ['stock', 'user_id'])
 EMAIL_NOTIFICATIONS = Counter('email_notifications_total', 'Total de notificações por email enviadas', ['user_id'])
 ANALYSIS_ERRORS = Counter('analysis_errors_total', 'Total de erros na análise', ['stock', 'user_id'])
+
+def is_market_open():
+    """
+    Verifica se a bolsa brasileira está aberta
+    Horário: 9h às 17h, segunda a sexta-feira (horário de Brasília)
+    """
+    now = datetime.now()
+    
+    # Verifica se é dia útil (segunda a sexta = 0 a 4)
+    if now.weekday() >= 5:  # 5 = sábado, 6 = domingo
+        return False
+    
+    # Verifica se está no horário de funcionamento (9h às 17h)
+    market_open = dt_time(9, 0)   # 9:00
+    market_close = dt_time(17, 0)  # 17:00
+    current_time = now.time()
+    
+    return market_open <= current_time <= market_close
 
 def get_db():
     db = SessionLocal()
@@ -148,6 +166,11 @@ def analyze_all_stocks():
 def send_user_analysis_summary_email(usuario, buy_signals, sell_signals, all_analyses, errors):
     """Envia email com resumo das análises de um usuário específico"""
     from datetime import datetime
+    
+    # Verifica se a bolsa está aberta antes de enviar o email
+    if not is_market_open():
+        logging.info(f"📧 Email para {usuario.nome} não enviado - bolsa fechada (horário: {datetime.now().strftime('%H:%M')})")
+        return
     
     current_time = datetime.now().strftime("%d/%m/%Y %H:%M")
     
@@ -362,6 +385,11 @@ def main():
     # Agenda análise a cada hora
     schedule.every().hour.do(analyze_all_stocks)
     logging.info("⏰ Análise agendada para executar a cada hora")
+    
+    # Log do status da bolsa na inicialização
+    market_status = "aberta" if is_market_open() else "fechada"
+    current_time = datetime.now().strftime("%H:%M")
+    logging.info(f"📈 Status da bolsa: {market_status} (horário atual: {current_time})")
     
     # Executa análise inicial
     analyze_all_stocks()

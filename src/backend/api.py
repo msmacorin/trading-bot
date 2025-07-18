@@ -154,51 +154,95 @@ async def listar_acoes(usuario = Depends(obter_usuario_atual), db: Session = Dep
 @app.post("/api/acoes", response_model=AcaoResponse)
 async def adicionar_acao(acao: AcaoCreate, usuario = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
     """Adiciona uma nova ação para monitoramento"""
-    # Verifica se a ação já existe para este usuário
-    db_acao = db.query(Acao).filter(Acao.codigo == acao.codigo, Acao.usuario_id == usuario.id).first()
-    if db_acao:
-        raise HTTPException(status_code=400, detail="Ação já cadastrada para este usuário")
+    # Importa e usa normalização
+    from src.backend.utils import normalize_stock_code, validate_stock_code
     
-    db_acao = Acao(codigo=acao.codigo, usuario_id=usuario.id, ativo=True)
-    db.add(db_acao)
-    db.commit()
-    db.refresh(db_acao)
-    return db_acao
+    try:
+        # Normaliza e valida o código da ação
+        normalized_code = normalize_stock_code(acao.codigo)
+        stock_info = validate_stock_code(acao.codigo)
+        
+        # Verifica se a ação já existe para este usuário (usando código normalizado)
+        db_acao = db.query(Acao).filter(Acao.codigo == normalized_code, Acao.usuario_id == usuario.id).first()
+        if db_acao:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Ação {stock_info['display_name']} já cadastrada para este usuário"
+            )
+        
+        db_acao = Acao(codigo=normalized_code, usuario_id=usuario.id, ativo=True)
+        db.add(db_acao)
+        db.commit()
+        db.refresh(db_acao)
+        return db_acao
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.delete("/api/acoes/{codigo}")
 async def remover_acao(codigo: str, usuario = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
     """Remove uma ação do monitoramento"""
-    db_acao = db.query(Acao).filter(Acao.codigo == codigo, Acao.usuario_id == usuario.id).first()
-    if not db_acao:
-        raise HTTPException(status_code=404, detail="Ação não encontrada")
+    # Importa e usa normalização
+    from src.backend.utils import normalize_stock_code
     
-    db.delete(db_acao)
-    db.commit()
-    return {"message": f"Ação {codigo} removida com sucesso"}
+    try:
+        # Normaliza o código para busca
+        normalized_code = normalize_stock_code(codigo)
+        
+        db_acao = db.query(Acao).filter(Acao.codigo == normalized_code, Acao.usuario_id == usuario.id).first()
+        if not db_acao:
+            raise HTTPException(status_code=404, detail="Ação não encontrada")
+        
+        db.delete(db_acao)
+        db.commit()
+        return {"message": f"Ação {normalized_code} removida com sucesso"}
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.patch("/api/acoes/{codigo}/ativar", response_model=AcaoResponse)
 async def ativar_acao(codigo: str, usuario = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
     """Ativa uma ação para monitoramento"""
-    db_acao = db.query(Acao).filter(Acao.codigo == codigo, Acao.usuario_id == usuario.id).first()
-    if not db_acao:
-        raise HTTPException(status_code=404, detail="Ação não encontrada")
+    # Importa e usa normalização
+    from src.backend.utils import normalize_stock_code
     
-    db_acao.ativo = True
-    db.commit()
-    db.refresh(db_acao)
-    return db_acao
+    try:
+        # Normaliza o código para busca
+        normalized_code = normalize_stock_code(codigo)
+        
+        db_acao = db.query(Acao).filter(Acao.codigo == normalized_code, Acao.usuario_id == usuario.id).first()
+        if not db_acao:
+            raise HTTPException(status_code=404, detail="Ação não encontrada")
+        
+        db_acao.ativo = True
+        db.commit()
+        db.refresh(db_acao)
+        return db_acao
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.patch("/api/acoes/{codigo}/desativar", response_model=AcaoResponse)
 async def desativar_acao(codigo: str, usuario = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
     """Desativa uma ação do monitoramento"""
-    db_acao = db.query(Acao).filter(Acao.codigo == codigo, Acao.usuario_id == usuario.id).first()
-    if not db_acao:
-        raise HTTPException(status_code=404, detail="Ação não encontrada")
+    # Importa e usa normalização
+    from src.backend.utils import normalize_stock_code
     
-    db_acao.ativo = False
-    db.commit()
-    db.refresh(db_acao)
-    return db_acao
+    try:
+        # Normaliza o código para busca
+        normalized_code = normalize_stock_code(codigo)
+        
+        db_acao = db.query(Acao).filter(Acao.codigo == normalized_code, Acao.usuario_id == usuario.id).first()
+        if not db_acao:
+            raise HTTPException(status_code=404, detail="Ação não encontrada")
+        
+        db_acao.ativo = False
+        db.commit()
+        db.refresh(db_acao)
+        return db_acao
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 # Rotas protegidas - Carteira
 @app.get("/api/carteira", response_model=List[CarteiraResponse])
@@ -209,21 +253,34 @@ async def listar_carteira(usuario = Depends(obter_usuario_atual), db: Session = 
 @app.post("/api/carteira", response_model=CarteiraResponse)
 async def adicionar_posicao(posicao: CarteiraCreate, usuario = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
     """Adiciona uma nova posição na carteira"""
-    # Verifica se a ação existe para este usuário
-    db_acao = db.query(Acao).filter(Acao.codigo == posicao.codigo, Acao.usuario_id == usuario.id).first()
-    if not db_acao:
-        raise HTTPException(status_code=400, detail="Ação não cadastrada no sistema para este usuário")
+    # Importa e usa normalização
+    from src.backend.utils import normalize_stock_code
     
-    # Verifica se já existe posição para este usuário
-    db_posicao = db.query(Carteira).filter(Carteira.codigo == posicao.codigo, Carteira.usuario_id == usuario.id).first()
-    if db_posicao:
-        raise HTTPException(status_code=400, detail="Posição já existe na carteira")
-    
-    db_posicao = Carteira(**posicao.model_dump(), usuario_id=usuario.id)
-    db.add(db_posicao)
-    db.commit()
-    db.refresh(db_posicao)
-    return db_posicao
+    try:
+        # Normaliza o código para busca e armazenamento
+        normalized_code = normalize_stock_code(posicao.codigo)
+        
+        # Verifica se a ação existe para este usuário
+        db_acao = db.query(Acao).filter(Acao.codigo == normalized_code, Acao.usuario_id == usuario.id).first()
+        if not db_acao:
+            raise HTTPException(status_code=400, detail="Ação não cadastrada no sistema para este usuário")
+        
+        # Verifica se já existe posição para este usuário
+        db_posicao = db.query(Carteira).filter(Carteira.codigo == normalized_code, Carteira.usuario_id == usuario.id).first()
+        if db_posicao:
+            raise HTTPException(status_code=400, detail="Posição já existe na carteira")
+        
+        # Cria nova posição com código normalizado
+        posicao_data = posicao.model_dump()
+        posicao_data['codigo'] = normalized_code
+        db_posicao = Carteira(**posicao_data, usuario_id=usuario.id)
+        db.add(db_posicao)
+        db.commit()
+        db.refresh(db_posicao)
+        return db_posicao
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.delete("/api/carteira/{codigo}")
 async def remover_posicao(codigo: str, usuario = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
@@ -247,22 +304,32 @@ async def atualizar_posicao(
     db: Session = Depends(get_db)
 ):
     """Atualiza os dados de uma posição na carteira"""
-    db_posicao = db.query(Carteira).filter(Carteira.codigo == codigo, Carteira.usuario_id == usuario.id).first()
-    if not db_posicao:
-        raise HTTPException(status_code=404, detail="Posição não encontrada")
+    # Importa e usa normalização
+    from src.backend.utils import normalize_stock_code
     
-    if quantidade is not None:
-        db_posicao.quantidade = quantidade
-    if preco_medio is not None:
-        db_posicao.preco_medio = preco_medio
-    if stop_loss is not None:
-        db_posicao.stop_loss = stop_loss
-    if take_profit is not None:
-        db_posicao.take_profit = take_profit
-    
-    db.commit()
-    db.refresh(db_posicao)
-    return db_posicao
+    try:
+        # Normaliza o código para busca
+        normalized_code = normalize_stock_code(codigo)
+        
+        db_posicao = db.query(Carteira).filter(Carteira.codigo == normalized_code, Carteira.usuario_id == usuario.id).first()
+        if not db_posicao:
+            raise HTTPException(status_code=404, detail="Posição não encontrada")
+        
+        if quantidade is not None:
+            db_posicao.quantidade = quantidade
+        if preco_medio is not None:
+            db_posicao.preco_medio = preco_medio
+        if stop_loss is not None:
+            db_posicao.stop_loss = stop_loss
+        if take_profit is not None:
+            db_posicao.take_profit = take_profit
+        
+        db.commit()
+        db.refresh(db_posicao)
+        return db_posicao
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/usuario/atual")
 async def usuario_atual(usuario = Depends(obter_usuario_atual)):

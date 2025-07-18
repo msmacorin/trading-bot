@@ -29,18 +29,44 @@ const AnalisePage: React.FC = () => {
     }
   };
 
+  const validateStockCode = (code: string): string | null => {
+    const cleaned = code.trim().toUpperCase();
+    
+    // Remove .SA se presente
+    const normalized = cleaned.replace('.SA', '');
+    
+    // Valida formato básico: 4 letras + 1-2 números + F opcional
+    const regex = /^[A-Z]{4}\d{1,2}F?$/;
+    if (!regex.test(normalized)) {
+      return 'Formato inválido. Use formato como PETR4, VALE3F, MGLU3, etc.';
+    }
+    
+    return null;
+  };
+
   const handleAddStock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStockCode.trim()) return;
 
+    // Valida o código antes de enviar
+    const validationError = validateStockCode(newStockCode);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     try {
       setAddingStock(true);
-      await apiService.addStock(newStockCode.trim().toUpperCase());
+      // Remove .SA se presente e normaliza
+      const normalizedCode = newStockCode.trim().toUpperCase().replace('.SA', '');
+      await apiService.addStock(normalizedCode);
       setNewStockCode('');
       setShowAddModal(false);
       await loadStocks();
-    } catch (err) {
-      setError('Erro ao adicionar ação');
+    } catch (err: any) {
+      // Exibe erro mais específico se disponível
+      const errorMessage = err.response?.data?.detail || 'Erro ao adicionar ação';
+      setError(errorMessage);
       console.error('Erro ao adicionar ação:', err);
     } finally {
       setAddingStock(false);
@@ -179,9 +205,12 @@ const AnalisePage: React.FC = () => {
                   className="form-input"
                   value={newStockCode}
                   onChange={(e) => setNewStockCode(e.target.value)}
-                  placeholder="Ex: PETR4.SA"
+                  placeholder="Ex: PETR4, VALE3F, MGLU3.SA"
                   required
                 />
+                <small className="form-help">
+                  Formatos aceitos: PETR4, VALE3F (fracionária), MGLU3.SA
+                </small>
               </div>
               <div className="form-actions">
                 <button

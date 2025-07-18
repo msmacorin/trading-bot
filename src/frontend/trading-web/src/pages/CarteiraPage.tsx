@@ -30,13 +30,38 @@ const CarteiraPage: React.FC = () => {
     }
   };
 
+  const validateStockCode = (code: string): string | null => {
+    const cleaned = code.trim().toUpperCase();
+    
+    // Remove .SA se presente
+    const normalized = cleaned.replace('.SA', '');
+    
+    // Valida formato básico: 4 letras + 1-2 números + F opcional
+    const regex = /^[A-Z]{4}\d{1,2}F?$/;
+    if (!regex.test(normalized)) {
+      return 'Formato inválido. Use formato como PETR4, VALE3F, MGLU3, etc.';
+    }
+    
+    return null;
+  };
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStock.codigo.trim() || !newStock.quantidade || !newStock.preco_medio) return;
+    
+    // Valida o código antes de enviar
+    const validationError = validateStockCode(newStock.codigo);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    
     try {
       setAdding(true);
+      // Remove .SA se presente e normaliza
+      const normalizedCode = newStock.codigo.trim().toUpperCase().replace('.SA', '');
       await apiService.addToPortfolio({
-        codigo: newStock.codigo.trim().toUpperCase(),
+        codigo: normalizedCode,
         quantidade: Number(newStock.quantidade),
         preco_medio: Number(newStock.preco_medio),
         stop_loss: newStock.stop_loss ? Number(newStock.stop_loss) : 0,
@@ -45,8 +70,10 @@ const CarteiraPage: React.FC = () => {
       setShowAddModal(false);
       setNewStock({ codigo: '', quantidade: '', preco_medio: '', stop_loss: '', take_profit: '' });
       await loadPortfolio();
-    } catch (err) {
-      setError('Erro ao adicionar ativo na carteira');
+    } catch (err: any) {
+      // Exibe erro mais específico se disponível
+      const errorMessage = err.response?.data?.detail || 'Erro ao adicionar ativo na carteira';
+      setError(errorMessage);
       console.error('Erro ao adicionar ativo:', err);
     } finally {
       setAdding(false);

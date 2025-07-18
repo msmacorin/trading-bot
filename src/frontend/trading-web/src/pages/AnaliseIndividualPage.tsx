@@ -10,18 +10,44 @@ const AnaliseIndividualPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const validateStockCode = (code: string): string | null => {
+    const cleaned = code.trim().toUpperCase();
+    
+    // Remove .SA se presente
+    const normalized = cleaned.replace('.SA', '');
+    
+    // Valida formato básico: 4 letras + 1-2 números + F opcional
+    const regex = /^[A-Z]{4}\d{1,2}F?$/;
+    if (!regex.test(normalized)) {
+      return 'Formato inválido. Use formato como PETR4, VALE3F, MGLU3, etc.';
+    }
+    
+    return null;
+  };
+
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!stockCode.trim()) return;
 
+    // Valida o código antes de enviar
+    const validationError = validateStockCode(stockCode);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
-      const result = await apiService.getStockAnalysis(stockCode.trim().toUpperCase());
+      // Remove .SA se presente e normaliza
+      const normalizedCode = stockCode.trim().toUpperCase().replace('.SA', '');
+      const result = await apiService.getStockAnalysis(normalizedCode);
       setAnalysis(result);
-      setSearchParams({ codigo: stockCode.trim().toUpperCase() });
-    } catch (err) {
-      setError('Erro ao analisar ação. Verifique o código e tente novamente.');
+      setSearchParams({ codigo: normalizedCode });
+    } catch (err: any) {
+      // Exibe erro mais específico se disponível
+      const errorMessage = err.response?.data?.detail || 'Erro ao analisar ação. Verifique o código e tente novamente.';
+      setError(errorMessage);
       console.error('Erro na análise:', err);
     } finally {
       setLoading(false);

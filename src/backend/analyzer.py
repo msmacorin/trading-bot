@@ -34,28 +34,48 @@ def analyze_stock(stock_code: str) -> Dict:
     Analisa uma ação usando indicadores técnicos com múltiplos provedores
     
     Args:
-        stock_code: Código da ação (ex: PETR4.SA ou PETR4)
+        stock_code: Código da ação (ex: PETR4.SA ou PETR4 ou PETR4F)
     
     Returns:
         Dict com análise completa incluindo recomendações
     """
     try:
-        logger.info(f"Iniciando análise de {stock_code}")
+        from src.backend.utils import normalize_stock_code, validate_stock_code, get_stock_display_info
+        
+        # Normaliza o código da ação
+        try:
+            normalized_code = normalize_stock_code(stock_code)
+            stock_info = validate_stock_code(stock_code)
+            display_info = get_stock_display_info(stock_code)
+        except ValueError as e:
+            logger.error(f"Código inválido {stock_code}: {e}")
+            raise ValueError(f"Código de ação inválido: {e}")
+        
+        logger.info(f"Iniciando análise de {stock_info['display_name']} (código normalizado: {normalized_code})")
         
         # Tenta obter dados históricos usando múltiplos provedores
-        hist = data_manager.get_historical_data(stock_code, days=30)
+        # Para ações fracionárias, tenta primeiro o código fracionário, depois o código base
+        if stock_info['is_fractional']:
+            hist = data_manager.get_historical_data(normalized_code, days=30)
+            if hist is None or hist.empty:
+                # Se não encontrar dados para a fracionária, tenta a ação normal
+                base_code = stock_info['base_code']
+                logger.info(f"Dados não encontrados para {normalized_code}, tentando código base {base_code}")
+                hist = data_manager.get_historical_data(base_code, days=30)
+        else:
+            hist = data_manager.get_historical_data(normalized_code, days=30)
         
         # Se todos os provedores falharam, usa dados simulados
         if hist is None or hist.empty:
-            logger.warning(f"Todos os provedores falharam para {stock_code}, usando dados simulados")
-            hist = create_fallback_data(stock_code)
+            logger.warning(f"Todos os provedores falharam para {normalized_code}, usando dados simulados")
+            hist = create_fallback_data(normalized_code)
             using_simulated_data = True
         else:
             using_simulated_data = False
         
         # Verifica se temos dados suficientes
         if len(hist) < 5:
-            raise ValueError(f"Dados insuficientes para análise de {stock_code}")
+            raise ValueError(f"Dados insuficientes para análise de {normalized_code}")
         
         # Preço atual (último preço de fechamento)
         current_price = hist['Close'].iloc[-1]
@@ -86,11 +106,17 @@ def analyze_stock(stock_code: str) -> Dict:
         # Análise de condições de mercado
         conditions = []
         
-        # Adiciona informação sobre fonte dos dados
+        # Adiciona informação sobre fonte dos dados e tipo de ação
+        if stock_info['is_fractional']:
+            conditions.append(f"📊 Ação fracionária ({display_info['display_code']})")
+        
         if using_simulated_data:
             conditions.append("⚠️ Usando dados simulados (APIs indisponíveis)")
         else:
             conditions.append("✅ Dados obtidos de provedor externo")
+            
+        if not stock_info['is_known']:
+            conditions.append("⚠️ Código não reconhecido na base de dados")
         
         # Análise RSI
         if rsi < 30:
@@ -187,6 +213,10 @@ def analyze_stock(stock_code: str) -> Dict:
                 conditions.append("📊 Volume abaixo da média (atividade baixa)")
         
         return {
+            "codigo": normalized_code,
+            "codigo_original": stock_code,
+            "display_name": display_info['display_code'],
+            "is_fractional": stock_info['is_fractional'],
             "current_position": current_position,
             "new_position": new_position,
             "price": round(float(current_price), 2),
@@ -205,7 +235,18 @@ def analyze_stock(stock_code: str) -> Dict:
         logger.error(f"Erro crítico na análise de {stock_code}: {str(e)}")
         
         # Fallback final com dados mínimos
+        try:
+            normalized_code = normalize_stock_code(stock_code)
+            display_name = stock_code
+        except:
+            normalized_code = stock_code
+            display_name = stock_code
+            
         return {
+            "codigo": normalized_code,
+            "codigo_original": stock_code,
+            "display_name": display_name,
+            "is_fractional": False,
             "current_position": "HOLD",
             "new_position": "WAIT",
             "price": 25.00,
