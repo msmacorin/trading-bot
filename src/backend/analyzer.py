@@ -40,7 +40,7 @@ def analyze_stock(stock_code: str) -> Dict:
         Dict com análise completa incluindo recomendações
     """
     try:
-        from src.backend.utils import normalize_stock_code, validate_stock_code, get_stock_display_info
+        from backend.utils import normalize_stock_code, validate_stock_code, get_stock_display_info
         
         # Normaliza o código da ação
         try:
@@ -55,23 +55,28 @@ def analyze_stock(stock_code: str) -> Dict:
         
         # Tenta obter dados históricos usando múltiplos provedores
         # Para ações fracionárias, tenta primeiro o código fracionário, depois o código base
+        def is_valid_hist(hist):
+            return hist is not None and not hist.empty and 'Close' in hist.columns and hist['Close'].dropna().size >= 5 and hist['Close'].max() > 0
+
         if stock_info['is_fractional']:
             hist = data_manager.get_historical_data(normalized_code, days=30)
-            if hist is None or hist.empty:
-                # Se não encontrar dados para a fracionária, tenta a ação normal
+            if not is_valid_hist(hist):
                 base_code = stock_info['base_code']
-                logger.info(f"Dados não encontrados para {normalized_code}, tentando código base {base_code}")
+                logger.info(f"Dados não encontrados ou inválidos para {normalized_code}, tentando código base {base_code}")
                 hist = data_manager.get_historical_data(base_code, days=30)
+                if is_valid_hist(hist):
+                    logger.info(f"Dados válidos encontrados para código base {base_code}. Último preço: {hist['Close'].iloc[-1]}")
         else:
             hist = data_manager.get_historical_data(normalized_code, days=30)
-        
+
         # Se todos os provedores falharam, usa dados simulados
-        if hist is None or hist.empty:
+        if not is_valid_hist(hist):
             logger.warning(f"Todos os provedores falharam para {normalized_code}, usando dados simulados")
             hist = create_fallback_data(normalized_code)
             using_simulated_data = True
         else:
             using_simulated_data = False
+            logger.info(f"Dados válidos encontrados para {normalized_code}. Último preço: {hist['Close'].iloc[-1]}")
         
         # Verifica se temos dados suficientes
         if len(hist) < 5:

@@ -3,7 +3,7 @@ from typing import Optional
 from jose import JWTError, jwt
 from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from src.backend.database import autenticar_usuario, get_usuario_por_id
+from backend.database import autenticar_usuario, get_usuario_por_id
 
 # Configurações de segurança
 SECRET_KEY = "sua_chave_secreta_muito_segura_aqui_2024"  # Em produção, use variável de ambiente

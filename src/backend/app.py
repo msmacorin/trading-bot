@@ -7,9 +7,9 @@ from prometheus_client import start_http_server, Counter, Histogram, Gauge
 import pandas as pd
 import numpy as np
 from collections import defaultdict
-from src.backend.analyzer import analyze_stock
-from src.backend.notifier import send_email_notification
-from src.backend.database import SessionLocal, Acao, Carteira, Usuario, get_acoes_ativas, get_carteira
+from backend.analyzer import analyze_stock
+from backend.notifier import send_email_notification
+from backend.database import SessionLocal, Acao, Carteira, Usuario, get_acoes_ativas, get_carteira
 import threading
 
 # Configuração de logging
@@ -321,7 +321,7 @@ def analyze_stock_on_demand(codigo_acao: str):
             return analysis_cache[codigo_acao]['analysis']
         
         # Faz análise e salva no cache
-        from src.backend.analyzer import analyze_stock
+        from backend.analyzer import analyze_stock
         analysis = analyze_stock(codigo_acao)
         analysis_cache[codigo_acao] = {
             'analysis': analysis,
@@ -489,7 +489,7 @@ def send_user_analysis_summary_email(usuario, buy_signals, sell_signals, all_ana
     EMAIL_NOTIFICATIONS.labels(user_id=usuario.id).inc()
     
     # Envia o email
-    send_email_notification(usuario.email, subject, body)
+    send_email_notification(subject, body, usuario.email)
     logging.info(f"📧 Email enviado para {usuario.nome} ({usuario.email})")
 
 def get_cache_stats():

@@ -60,7 +60,7 @@ class YahooFinanceProvider(DataProvider):
             
         try:
             # Importa normalização
-            from src.backend.utils import format_stock_code_for_provider
+            from backend.utils import format_stock_code_for_provider
             
             # Formata símbolo para Yahoo Finance
             yahoo_symbol = format_stock_code_for_provider(symbol, 'yahoo')

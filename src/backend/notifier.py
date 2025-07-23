@@ -20,6 +20,11 @@ def send_email_notification(subject: str, body: str, to_email: str = None) -> bo
         email_from = os.getenv('EMAIL_FROM')
         email_to = to_email or os.getenv('EMAIL_TO')
         
+        # Validação de email
+        if email_to and len(email_to) > 320:
+            logging.error(f"Email muito longo: {len(email_to)} caracteres - {repr(email_to)}")
+            return False
+        
         if not resend_api_key or not email_from or not email_to:
             logging.warning("Configurações de email não encontradas. Pulando notificação.")
             return False

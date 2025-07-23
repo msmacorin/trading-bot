@@ -12,8 +12,8 @@ from pathlib import Path
 root_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(root_dir))
 
-from src.backend.database import SessionLocal, Acao, Carteira
-from src.backend.utils import normalize_stock_code, validate_stock_code
+from backend.database import SessionLocal, Acao, Carteira
+from backend.utils import normalize_stock_code, validate_stock_code
 import logging
 
 # Configurar logging

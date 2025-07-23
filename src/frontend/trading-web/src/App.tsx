@@ -11,6 +11,7 @@ import CarteiraPage from './pages/CarteiraPage';
 import TransacoesPage from './pages/TransacoesPage';
 import AnaliseIndividualPage from './pages/AnaliseIndividualPage';
 import './styles/global.css';
+import { useState } from 'react';
 
 // Componente para rotas protegidas
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -44,10 +45,34 @@ const AppContent: React.FC = () => {
   
   // Hook para verificar validade do token periodicamente
   useTokenValidation();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
     <div className="app">
-      {user && <Sidebar />}
+      {user && (
+        <>
+          <button
+            className="sidebar-toggle"
+            aria-label={sidebarOpen ? 'Fechar menu' : 'Abrir menu'}
+            onClick={() => setSidebarOpen((open) => !open)}
+            style={{
+              position: 'fixed',
+              top: 20,
+              left: sidebarOpen ? 260 : 20,
+              zIndex: 2000,
+              background: 'none',
+              border: 'none',
+              fontSize: 28,
+              cursor: 'pointer',
+              color: '#2c3e50',
+              transition: 'left 0.3s',
+            }}
+          >
+            <span role="img" aria-label="menu">☰</span>
+          </button>
+          <Sidebar open={sidebarOpen} />
+        </>
+      )}
       <TokenExpirationAlert daysBeforeExpiration={7} />
       <Routes>
         {/* Rotas públicas */}

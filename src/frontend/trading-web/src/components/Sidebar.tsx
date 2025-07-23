@@ -2,7 +2,11 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+  open: boolean;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ open }) => {
   const { user, logout } = useAuth();
 
   const handleLogout = () => {
@@ -10,7 +14,7 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <div className="sidebar">
+    <div className={`sidebar${open ? '' : ' sidebar-collapsed'}`}>
       <div className="sidebar-header">
         <h1>🤖 Trading Bot</h1>
         {user && (

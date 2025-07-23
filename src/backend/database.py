@@ -64,6 +64,8 @@ class Carteira(Base):
     stop_loss = Column(Float)
     take_profit = Column(Float)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)  # Novo campo
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)  # Novo campo
     
     # Relacionamento
     usuario = relationship("Usuario", back_populates="carteira")
@@ -120,7 +122,7 @@ def get_acoes_ativas(usuario_id):
 
 def get_acao_by_codigo(codigo: str, usuario_id: int):
     """Busca uma ação por código normalizado"""
-    from src.backend.utils import normalize_stock_code
+    from backend.utils import normalize_stock_code
     
     db = SessionLocal()
     try:
@@ -144,7 +146,7 @@ def get_carteira(usuario_id):
 
 def get_posicao_by_codigo(codigo: str, usuario_id: int):
     """Busca uma posição na carteira por código normalizado"""
-    from src.backend.utils import normalize_stock_code
+    from backend.utils import normalize_stock_code
     
     db = SessionLocal()
     try:
@@ -170,7 +172,7 @@ def get_transacoes(usuario_id: int):
 
 def get_transacoes_by_codigo(codigo: str, usuario_id: int):
     """Retorna transações de uma ação específica"""
-    from src.backend.utils import normalize_stock_code
+    from backend.utils import normalize_stock_code
     
     db = SessionLocal()
     try:
@@ -188,7 +190,7 @@ def criar_transacao(codigo: str, quantidade_vendida: int, preco_compra: float,
                    preco_venda: float, stop_loss_original: float, 
                    take_profit_original: float, usuario_id: int):
     """Cria uma nova transação de venda"""
-    from src.backend.utils import normalize_stock_code
+    from backend.utils import normalize_stock_code
     
     db = SessionLocal()
     try:

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Portfolio, StockAnalysis } from '../types';
 import { apiService } from '../services/api';
+// Remover: import { FaEllipsisV } from 'react-icons/fa';
 
 interface CacheData {
   analysis: StockAnalysis & { data_source?: string };
@@ -36,6 +37,7 @@ const CarteiraPage: React.FC = () => {
   const [analysisStock, setAnalysisStock] = useState<Portfolio | null>(null);
   const [analysisData, setAnalysisData] = useState<(StockAnalysis & { data_source?: string }) | null>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
 
   useEffect(() => {
     loadPortfolio();
@@ -245,13 +247,33 @@ const CarteiraPage: React.FC = () => {
                   <td>R$ {item.stop_loss.toFixed(2)}</td>
                   <td>R$ {item.take_profit.toFixed(2)}</td>
                   <td>{item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : '-'}</td>
-                  <td>
-                    <div className="action-buttons">
-                      <button className="btn btn-success" onClick={() => handleSell(item)}>Vender</button>
-                      <button className="btn btn-warning" onClick={() => handleEdit(item)}>Editar</button>
-                      <button className="btn btn-danger" onClick={() => handleDelete(item.codigo)}>Remover</button>
-                      <button className="btn btn-info" onClick={() => handleShowAnalysis(item)}>Analisar</button>
-                    </div>
+                  <td style={{ position: 'relative' }}>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ padding: '6px 10px', fontSize: 18 }}
+                      onClick={() => setOpenActionMenu(openActionMenu === item.codigo ? null : item.codigo)}
+                      aria-label="Ações"
+                    >
+                      {'⋮'}
+                    </button>
+                    {openActionMenu === item.codigo && (
+                      <div className="action-dropdown" style={{
+                        position: 'absolute',
+                        top: 35,
+                        right: 0,
+                        background: '#fff',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                        borderRadius: 6,
+                        zIndex: 10,
+                        minWidth: 140,
+                        padding: 0
+                      }}>
+                        <button className="dropdown-item" onClick={() => { setOpenActionMenu(null); handleSell(item); }}>Vender</button>
+                        <button className="dropdown-item" onClick={() => { setOpenActionMenu(null); handleEdit(item); }}>Editar</button>
+                        <button className="dropdown-item" onClick={() => { setOpenActionMenu(null); handleDelete(item.codigo); }}>Remover</button>
+                        <button className="dropdown-item" onClick={() => { setOpenActionMenu(null); handleShowAnalysis(item); }}>Analisar</button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -9,9 +9,9 @@ import os
 # Adiciona o diretório pai ao path para importar módulos do backend
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
-from src.backend.database import SessionLocal, Acao, Carteira, criar_usuario
-from src.backend.analyzer import analyze_stock
-from src.backend.auth import obter_usuario_atual, autenticar_e_criar_token
+from backend.database import SessionLocal, Acao, Carteira, criar_usuario
+from backend.analyzer import analyze_stock
+from backend.auth import obter_usuario_atual, autenticar_e_criar_token
 
 app = FastAPI(
     title="Trading Bot API",
@@ -142,7 +142,7 @@ def listar_acoes_ativas(usuario_atual = Depends(obter_usuario_atual), db: Sessio
 def adicionar_acao(acao: AcaoCreate, usuario_atual = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
     """Adiciona uma nova ação para monitoramento do usuário logado"""
     # Importa e usa normalização
-    from src.backend.utils import normalize_stock_code, validate_stock_code
+    from backend.utils import normalize_stock_code, validate_stock_code
     
     try:
         # Normaliza e valida o código da ação
@@ -173,7 +173,7 @@ def adicionar_acao(acao: AcaoCreate, usuario_atual = Depends(obter_usuario_atual
 def remover_acao(codigo: str, usuario_atual = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
     """Remove uma ação do monitoramento do usuário logado"""
     # Importa e usa normalização
-    from src.backend.utils import normalize_stock_code
+    from backend.utils import normalize_stock_code
     
     try:
         # Normaliza o código para busca

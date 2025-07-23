@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 try:
-    from src.backend.database import (criar_usuario, get_acoes_ativas, get_carteira, SessionLocal, 
+    from backend.database import (criar_usuario, get_acoes_ativas, get_carteira, SessionLocal, 
                                      Acao, Carteira, Transacao, get_transacoes, criar_transacao, 
                                      get_posicao_by_codigo)
     print("✅ Successfully imported src.backend.database")
@@ -21,7 +21,7 @@ except ImportError as e:
     raise
 
 try:
-    from src.backend.auth import autenticar_e_criar_token, obter_usuario_atual
+    from backend.auth import autenticar_e_criar_token, obter_usuario_atual
     print("✅ Successfully imported src.backend.auth")
 except ImportError as e:
     print("❌ Error importing src.backend.auth:", str(e))
@@ -186,7 +186,7 @@ async def listar_acoes(usuario = Depends(obter_usuario_atual), db: Session = Dep
 async def adicionar_acao(acao: AcaoCreate, usuario = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
     """Adiciona uma nova ação para monitoramento"""
     # Importa e usa normalização
-    from src.backend.utils import normalize_stock_code, validate_stock_code
+    from backend.utils import normalize_stock_code, validate_stock_code
     
     try:
         # Normaliza e valida o código da ação
@@ -214,7 +214,7 @@ async def adicionar_acao(acao: AcaoCreate, usuario = Depends(obter_usuario_atual
 async def remover_acao(codigo: str, usuario = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
     """Remove uma ação do monitoramento"""
     # Importa e usa normalização
-    from src.backend.utils import normalize_stock_code
+    from backend.utils import normalize_stock_code
     
     try:
         # Normaliza o código para busca
@@ -235,7 +235,7 @@ async def remover_acao(codigo: str, usuario = Depends(obter_usuario_atual), db: 
 async def ativar_acao(codigo: str, usuario = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
     """Ativa uma ação para monitoramento"""
     # Importa e usa normalização
-    from src.backend.utils import normalize_stock_code
+    from backend.utils import normalize_stock_code
     
     try:
         # Normaliza o código para busca
@@ -257,7 +257,7 @@ async def ativar_acao(codigo: str, usuario = Depends(obter_usuario_atual), db: S
 async def desativar_acao(codigo: str, usuario = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
     """Desativa uma ação do monitoramento"""
     # Importa e usa normalização
-    from src.backend.utils import normalize_stock_code
+    from backend.utils import normalize_stock_code
     
     try:
         # Normaliza o código para busca
@@ -285,7 +285,7 @@ async def listar_carteira(usuario = Depends(obter_usuario_atual), db: Session = 
 async def adicionar_posicao(posicao: CarteiraCreate, usuario = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
     """Adiciona uma nova posição na carteira"""
     # Importa e usa normalização
-    from src.backend.utils import normalize_stock_code
+    from backend.utils import normalize_stock_code
     
     try:
         # Normaliza o código para busca e armazenamento
@@ -336,7 +336,7 @@ async def atualizar_posicao(
 ):
     """Atualiza os dados de uma posição na carteira"""
     # Importa e usa normalização
-    from src.backend.utils import normalize_stock_code
+    from backend.utils import normalize_stock_code
     
     try:
         # Normaliza o código para busca
@@ -366,7 +366,7 @@ async def atualizar_posicao(
 @app.post("/api/carteira/{codigo}/vender")
 async def vender_acao(codigo: str, venda: VendaRequest, usuario = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
     """Executa venda de ação da carteira"""
-    from src.backend.utils import normalize_stock_code
+    from backend.utils import normalize_stock_code
     
     try:
         # Normaliza o código
@@ -501,7 +501,7 @@ async def usuario_atual(usuario = Depends(obter_usuario_atual)):
 async def analisar_acao(codigo: str):
     """Realiza análise técnica de uma ação específica usando múltiplos provedores, com lock e cache on-demand"""
     try:
-        from src.backend.app import analyze_stock_on_demand
+        from backend.app import analyze_stock_on_demand
         analysis = analyze_stock_on_demand(codigo)
         analysis['codigo'] = codigo
         return analysis
@@ -513,7 +513,7 @@ async def analisar_acao(codigo: str):
 async def get_cache_statistics():
     """Retorna estatísticas do cache compartilhado de análises"""
     try:
-        from src.backend.app import get_cache_stats
+        from backend.app import get_cache_stats
         return get_cache_stats()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao obter estatísticas: {str(e)}")
@@ -522,7 +522,7 @@ async def get_cache_statistics():
 async def force_cache_analysis(usuario = Depends(obter_usuario_atual)):
     """Força uma nova análise e atualização do cache (apenas para usuários autenticados)"""
     try:
-        from src.backend.app import analyze_all_stocks
+        from backend.app import analyze_all_stocks
         import asyncio
         
         # Executa a análise em background
@@ -541,7 +541,7 @@ async def force_cache_analysis(usuario = Depends(obter_usuario_atual)):
 async def get_cache_status():
     """Retorna status básico do cache"""
     try:
-        from src.backend.app import analysis_cache, cache_timestamp
+        from backend.app import analysis_cache, cache_timestamp
         from datetime import datetime
         
         if not analysis_cache:
@@ -576,7 +576,7 @@ async def testar_provedores(symbols: str = "PETR4,VALE3,ITUB4"):
         symbols: Símbolos para teste separados por vírgula (ex: PETR4,VALE3)
     """
     try:
-        from src.backend.analyzer import test_data_providers
+        from backend.analyzer import test_data_providers
         symbol_list = [s.strip() for s in symbols.split(',')]
         results = test_data_providers(symbol_list)
         return results
@@ -588,8 +588,8 @@ async def testar_provedores(symbols: str = "PETR4,VALE3,ITUB4"):
 async def status_provedores():
     """Retorna o status atual dos provedores de dados"""
     try:
-        from src.backend.data_providers import data_manager
-        from src.backend.config import DataProviderConfig
+        from backend.data_providers import data_manager
+        from backend.config import DataProviderConfig
         import pandas as pd
         
         # Informações básicas dos provedores
@@ -621,7 +621,7 @@ async def status_provedores():
 async def instrucoes_setup():
     """Retorna instruções para configurar provedores de dados"""
     try:
-        from src.backend.config import API_SETUP_INSTRUCTIONS, DataProviderConfig
+        from backend.config import API_SETUP_INSTRUCTIONS, DataProviderConfig
         
         return {
             "instructions": API_SETUP_INSTRUCTIONS,
@@ -648,7 +648,7 @@ async def instrucoes_setup():
 async def estatisticas_provedores():
     """Retorna estatísticas detalhadas dos provedores"""
     try:
-        from src.backend.data_providers import data_manager
+        from backend.data_providers import data_manager
         
         stats = data_manager.get_provider_statistics()
         
