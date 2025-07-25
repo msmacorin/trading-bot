@@ -12,6 +12,7 @@ import TransacoesPage from './pages/TransacoesPage';
 import AnaliseIndividualPage from './pages/AnaliseIndividualPage';
 import './styles/global.css';
 import { useState } from 'react';
+import './App.css';
 
 // Componente para rotas protegidas
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -60,15 +61,15 @@ const AppContent: React.FC = () => {
               top: 20,
               left: sidebarOpen ? 260 : 20,
               zIndex: 2000,
-              background: 'none',
+              background: sidebarOpen ? 'none' : '#2c3e50',
               border: 'none',
               fontSize: 28,
               cursor: 'pointer',
-              color: '#2c3e50',
-              transition: 'left 0.3s',
+              color: sidebarOpen ? '#2c3e50' : '#fff',
+              transition: 'left 0.3s, color 0.3s, background 0.3s',
             }}
           >
-            <span role="img" aria-label="menu">☰</span>
+            {sidebarOpen ? '<<' : '>>'}
           </button>
           <Sidebar open={sidebarOpen} />
         </>

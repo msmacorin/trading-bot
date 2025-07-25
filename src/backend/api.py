@@ -10,6 +10,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
+from datetime import datetime
 
 try:
     from backend.database import (criar_usuario, get_acoes_ativas, get_carteira, SessionLocal, 
@@ -118,8 +119,8 @@ class CarteiraResponse(BaseModel):
     stop_loss: float
     take_profit: float
     usuario_id: int
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     
     class Config:
         from_attributes = True

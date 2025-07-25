@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Portfolio, StockAnalysis } from '../types';
 import { apiService } from '../services/api';
 // Remover: import { FaEllipsisV } from 'react-icons/fa';
+import StockAnalysisModal from '../components/StockAnalysisModal';
 
 interface CacheData {
   analysis: StockAnalysis & { data_source?: string };
@@ -31,13 +32,11 @@ const CarteiraPage: React.FC = () => {
   const [sellStock, setSellStock] = useState<Portfolio | null>(null);
   const [sellData, setSellData] = useState({ quantidade_vendida: '', preco_venda: '' });
   const [selling, setSelling] = useState(false);
+  const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
+
   
   // Estados para análise
-  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
-  const [analysisStock, setAnalysisStock] = useState<Portfolio | null>(null);
-  const [analysisData, setAnalysisData] = useState<(StockAnalysis & { data_source?: string }) | null>(null);
-  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
-  const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
+  const [analysisCodigo, setAnalysisCodigo] = useState<string | null>(null);
 
   useEffect(() => {
     loadPortfolio();
@@ -59,7 +58,7 @@ const CarteiraPage: React.FC = () => {
 
   const getStockAnalysis = async (codigo: string) => {
     try {
-      setLoadingAnalysis(true);
+      // setLoadingAnalysis(true); // This state is no longer needed
       
       // Primeiro tenta buscar do cache
       const cacheStats = await apiService.get<CacheStats>('/api/system/cache/stats');
@@ -67,30 +66,26 @@ const CarteiraPage: React.FC = () => {
       if (cacheStats.cache_active && cacheStats.stocks_analysis && cacheStats.stocks_analysis[codigo]) {
         // Usa dados do cache
         const cacheData = cacheStats.stocks_analysis[codigo];
-        setAnalysisData(cacheData.analysis);
+        // setAnalysisData(cacheData.analysis); // This state is no longer needed
       } else {
         // Se não há no cache, faz análise individual
-        const analysis = await apiService.getStockAnalysis(codigo);
-        setAnalysisData(analysis);
+        // const analysis = await apiService.getStockAnalysis(codigo); // This function is no longer available
+        // setAnalysisData(analysis); // This state is no longer needed
       }
     } catch (error) {
       console.error('Erro ao buscar análise:', error);
       setError('Erro ao buscar análise da ação');
     } finally {
-      setLoadingAnalysis(false);
+      // setLoadingAnalysis(false); // This state is no longer needed
     }
   };
 
-  const handleShowAnalysis = async (item: Portfolio) => {
-    setAnalysisStock(item);
-    setShowAnalysisModal(true);
-    await getStockAnalysis(item.codigo);
+  const handleShowAnalysis = (item: Portfolio) => {
+    setAnalysisCodigo(item.codigo);
   };
 
   const closeAnalysisModal = () => {
-    setShowAnalysisModal(false);
-    setAnalysisStock(null);
-    setAnalysisData(null);
+    setAnalysisCodigo(null);
   };
 
   const validateStockCode = (code: string): string | null => {
@@ -239,44 +234,47 @@ const CarteiraPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {portfolio.map((item) => (
-                <tr key={item.codigo}>
-                  <td><span className="stock-code">{item.codigo}</span></td>
-                  <td>{item.quantidade}</td>
-                  <td>R$ {item.preco_medio.toFixed(2)}</td>
-                  <td>R$ {item.stop_loss.toFixed(2)}</td>
-                  <td>R$ {item.take_profit.toFixed(2)}</td>
-                  <td>{item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : '-'}</td>
-                  <td style={{ position: 'relative' }}>
-                    <button
-                      className="btn btn-secondary"
-                      style={{ padding: '6px 10px', fontSize: 18 }}
-                      onClick={() => setOpenActionMenu(openActionMenu === item.codigo ? null : item.codigo)}
-                      aria-label="Ações"
-                    >
-                      {'⋮'}
-                    </button>
-                    {openActionMenu === item.codigo && (
-                      <div className="action-dropdown" style={{
-                        position: 'absolute',
-                        top: 35,
-                        right: 0,
-                        background: '#fff',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                        borderRadius: 6,
-                        zIndex: 10,
-                        minWidth: 140,
-                        padding: 0
-                      }}>
-                        <button className="dropdown-item" onClick={() => { setOpenActionMenu(null); handleSell(item); }}>Vender</button>
-                        <button className="dropdown-item" onClick={() => { setOpenActionMenu(null); handleEdit(item); }}>Editar</button>
-                        <button className="dropdown-item" onClick={() => { setOpenActionMenu(null); handleDelete(item.codigo); }}>Remover</button>
-                        <button className="dropdown-item" onClick={() => { setOpenActionMenu(null); handleShowAnalysis(item); }}>Analisar</button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {portfolio
+                .slice()
+                .sort((a, b) => a.codigo.localeCompare(b.codigo))
+                .map((item) => (
+                  <tr key={item.codigo}>
+                    <td><span className="stock-code">{item.codigo}</span></td>
+                    <td>{item.quantidade}</td>
+                    <td>R$ {item.preco_medio.toFixed(2)}</td>
+                    <td>R$ {item.stop_loss.toFixed(2)}</td>
+                    <td>R$ {item.take_profit.toFixed(2)}</td>
+                    <td>{item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : '-'}</td>
+                    <td style={{ position: 'relative' }}>
+                      <button
+                        className="btn btn-secondary"
+                        style={{ padding: '6px 10px', fontSize: 18 }}
+                        onClick={() => setOpenActionMenu(openActionMenu === item.codigo ? null : item.codigo)}
+                        aria-label="Ações"
+                      >
+                        {'⋮'}
+                      </button>
+                      {openActionMenu === item.codigo && (
+                        <div className="action-dropdown" style={{
+                          position: 'absolute',
+                          top: 10,
+                          left: 55,
+                          background: '#fff',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                          borderRadius: 6,
+                          zIndex: 10,
+                          minWidth: 140,
+                          padding: 0
+                        }}>
+                          <button className="dropdown-item" onClick={() => { setOpenActionMenu(null); handleSell(item); }}>Vender</button>
+                          <button className="dropdown-item" onClick={() => { setOpenActionMenu(null); handleEdit(item); }}>Editar</button>
+                          <button className="dropdown-item" onClick={() => { setOpenActionMenu(null); handleDelete(item.codigo); }}>Remover</button>
+                          <button className="dropdown-item" onClick={() => { setOpenActionMenu(null); handleShowAnalysis(item); }}>Analisar</button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         )}
@@ -424,127 +422,7 @@ const CarteiraPage: React.FC = () => {
       )}
 
       {/* Modal para análise de ação */}
-      {showAnalysisModal && analysisStock && (
-        <div className="modal-overlay" onClick={closeAnalysisModal}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 className="modal-title">Análise de {analysisStock.codigo}</h2>
-              <button className="modal-close" onClick={closeAnalysisModal}>×</button>
-            </div>
-            {loadingAnalysis ? (
-              <div className="loading">Carregando análise...</div>
-                         ) : analysisData ? (
-               <div className="analysis-details">
-                 <div className="analysis-header">
-                   <h3>📊 Análise Técnica</h3>
-                   <div className="analysis-badges">
-                     <span className={`badge ${analysisData.current_position.toLowerCase()}`}>
-                       {analysisData.current_position}
-                     </span>
-                     <span className={`badge ${analysisData.new_position.toLowerCase()}`}>
-                       {analysisData.new_position}
-                     </span>
-                   </div>
-                 </div>
-
-                 <div className="analysis-grid">
-                   <div className="analysis-card">
-                     <div className="card-header">💰 Preços</div>
-                     <div className="card-content">
-                       <div className="metric">
-                         <span className="label">Preço Atual:</span>
-                         <span className="value">R$ {analysisData.price.toFixed(2)}</span>
-                       </div>
-                       <div className="metric">
-                         <span className="label">Stop Loss:</span>
-                         <span className="value">R$ {analysisData.stop_loss.toFixed(2)}</span>
-                       </div>
-                       <div className="metric">
-                         <span className="label">Take Profit:</span>
-                         <span className="value">R$ {analysisData.take_profit.toFixed(2)}</span>
-                       </div>
-                       <div className="metric">
-                         <span className="label">Variação:</span>
-                         <span className={`value ${analysisData.profit_pct >= 0 ? 'positive' : 'negative'}`}>
-                           {analysisData.profit_pct.toFixed(2)}%
-                         </span>
-                       </div>
-                     </div>
-                   </div>
-
-                   <div className="analysis-card">
-                     <div className="card-header">📈 Indicadores</div>
-                     <div className="card-content">
-                       <div className="metric">
-                         <span className="label">RSI:</span>
-                         <span className={`value ${analysisData.rsi < 30 ? 'buy-signal' : analysisData.rsi > 70 ? 'sell-signal' : 'neutral'}`}>
-                           {analysisData.rsi.toFixed(1)}
-                         </span>
-                       </div>
-                       <div className="metric">
-                         <span className="label">MACD:</span>
-                         <span className={`value ${analysisData.macd > 0 ? 'positive' : 'negative'}`}>
-                           {analysisData.macd.toFixed(3)}
-                         </span>
-                       </div>
-                       <div className="metric">
-                         <span className="label">Tendência:</span>
-                         <span className={`value ${analysisData.trend.toLowerCase()}`}>
-                           {analysisData.trend === 'UP' ? '⬆️ Alta' : '⬇️ Baixa'}
-                         </span>
-                       </div>
-                     </div>
-                   </div>
-
-                   <div className="analysis-card">
-                     <div className="card-header">🎯 Recomendações</div>
-                     <div className="card-content">
-                       <div className="recommendation">
-                         <strong>Para quem possui:</strong>
-                         <span className={`rec-value ${analysisData.current_position.toLowerCase()}`}>
-                           {analysisData.current_position === 'BUY' ? '🟢 Comprar Mais' : 
-                            analysisData.current_position === 'SELL' ? '🔴 Vender' : '⚪ Manter'}
-                         </span>
-                       </div>
-                       <div className="recommendation">
-                         <strong>Para quem não possui:</strong>
-                         <span className={`rec-value ${analysisData.new_position.toLowerCase()}`}>
-                           {analysisData.new_position === 'BUY' ? '🟢 Comprar' : 
-                            analysisData.new_position === 'WAIT' ? '⏳ Aguardar' : '❌ Evitar'}
-                         </span>
-                       </div>
-                     </div>
-                   </div>
-                 </div>
-
-                 {analysisData.conditions && analysisData.conditions.length > 0 && (
-                   <div className="analysis-conditions">
-                     <h4>🔍 Condições Identificadas</h4>
-                     <div className="conditions-list">
-                       {analysisData.conditions.map((condition, index) => (
-                         <div key={index} className="condition-item">
-                           {condition}
-                         </div>
-                       ))}
-                     </div>
-                   </div>
-                 )}
-
-                 {analysisData.data_source && (
-                   <div className="analysis-footer">
-                     <small>📡 Fonte dos dados: {analysisData.data_source}</small>
-                   </div>
-                 )}
-               </div>
-            ) : (
-              <div className="empty-state">
-                <h3>Nenhuma análise disponível para {analysisStock.codigo}</h3>
-                <p>Faça uma análise manual para obter detalhes.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <StockAnalysisModal open={!!analysisCodigo} onClose={closeAnalysisModal} codigo={analysisCodigo} />
     </div>
   );
 };

@@ -363,6 +363,8 @@ def send_user_analysis_summary_email(usuario, buy_signals, sell_signals, all_ana
         <tr style="background-color: #e8f5e8;">
             <th>Ação</th>
             <th>Preço</th>
+            <th>Stop Loss</th>
+            <th>Take Profit</th>
             <th>RSI</th>
             <th>MACD</th>
             <th>Tendência</th>
@@ -376,6 +378,8 @@ def send_user_analysis_summary_email(usuario, buy_signals, sell_signals, all_ana
             <tr>
                 <td><strong>{signal['stock']}</strong></td>
                 <td>R$ {analysis['price']:.2f}</td>
+                <td>R$ {analysis['stop_loss']:.2f}</td>
+                <td>R$ {analysis['take_profit']:.2f}</td>
                 <td>{analysis['rsi']:.1f}</td>
                 <td>{analysis['macd']:.3f}</td>
                 <td>{analysis['trend']}</td>

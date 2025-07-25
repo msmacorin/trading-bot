@@ -17,7 +17,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open }) => {
     <div className={`sidebar${open ? '' : ' sidebar-collapsed'}`}>
       <div className="sidebar-header">
         <h1>🤖 Trading Bot</h1>
-        {user && (
+        {(user && open) && (
           <div className="user-info">
             <div className="user-avatar">
               👤
@@ -34,32 +34,37 @@ const Sidebar: React.FC<SidebarProps> = ({ open }) => {
         <ul>
           <li>
             <NavLink to="/analise" className={({ isActive }) => isActive ? 'active' : ''}>
-              📊 Em Análise
+              <span>📊</span>
+              <span>Em Análise</span>
             </NavLink>
           </li>
           <li>
             <NavLink to="/carteira" className={({ isActive }) => isActive ? 'active' : ''}>
-              💼 Carteira
+              <span>💼</span>
+              <span>Carteira</span>
             </NavLink>
           </li>
           <li>
             <NavLink to="/transacoes" className={({ isActive }) => isActive ? 'active' : ''}>
-              💰 Ordens Executadas
+              <span>💰</span>
+              <span>Ordens Executadas</span>
             </NavLink>
           </li>
           <li>
             <NavLink to="/analise-individual" className={({ isActive }) => isActive ? 'active' : ''}>
-              🔍 Análise Individual
+              <span>🔍</span>
+              <span>Análise Individual</span>
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/login" className={({ isActive }) => isActive ? 'active' : ''} onClick={handleLogout}>
+              <span>🚪</span>
+              <span>Sair</span>
             </NavLink>
           </li>
         </ul>
       </nav>
       
-      <div className="sidebar-footer">
-        <button onClick={handleLogout} className="logout-button">
-          🚪 Sair
-        </button>
-      </div>
     </div>
   );
 };

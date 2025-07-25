@@ -136,6 +136,7 @@ body {
   margin-bottom: 30px;
   padding-bottom: 20px;
   border-bottom: 2px solid #e0e0e0;
+  gap: 10px;
 }
 
 .page-title {
@@ -267,16 +268,30 @@ body {
 .dropdown-item {
   background: none;
   border: none;
-  padding: 10px 16px;
+  padding: 12px 20px;
   text-align: left;
   font-size: 15px;
   color: #2c3e50;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s, color 0.2s;
+  outline: none;
+  border-bottom: 1px solid #f0f0f0;
+  position: relative;
 }
 
-.dropdown-item:hover {
-  background: #f0f0f0;
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+  background: #eaf3fb;
+  color: #1976d2;
+}
+
+.dropdown-item:active {
+  background: #d2e3f7;
+  color: #0d47a1;
 }
 
 /* Status */
